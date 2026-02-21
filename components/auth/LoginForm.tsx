@@ -1,89 +1,136 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Stethoscope } from 'lucide-react'
+import { Stethoscope, Mail, Lock, Loader2, ArrowRight, ShieldCheck } from 'lucide-react'
+import { toast } from 'sonner'
+import { motion } from 'framer-motion'
 
 export default function LoginForm() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
     const router = useRouter()
+    const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
-        setError(null)
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        })
+        try {
+            const { error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            })
 
-        if (error) {
-            setError(error.message)
-            setLoading(false)
-        } else {
+            if (error) throw error
+
+            toast.success('¡Bienvenido a MdPulso!', {
+                description: 'Acceso autorizado. Cargando tu panel de control...'
+            })
+
             router.push('/')
             router.refresh()
+        } catch (err: any) {
+            toast.error('Error de acceso', {
+                description: err.message || 'Credenciales incorrectas'
+            })
+        } finally {
+            setLoading(false)
         }
     }
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex flex-col items-center gap-2">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600 text-white">
-                    <Stethoscope className="h-6 w-6" />
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col gap-8"
+        >
+            <div className="text-center space-y-2">
+                <div className="flex justify-center mb-4">
+                    <div className="p-3 bg-emerald-600 rounded-2xl shadow-xl shadow-emerald-200">
+                        <Stethoscope className="h-8 w-8 text-white" />
+                    </div>
                 </div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Bienvenido de nuevo</h1>
-                <p className="text-sm text-slate-500">Ingresa tus credenciales para acceder a la clínica</p>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900 font-display">MdPulso</h1>
+                <p className="text-slate-500 text-sm">Plataforma Profesional de Gestión Médica</p>
             </div>
 
-            <form onSubmit={handleLogin} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-slate-700" htmlFor="email">Email</label>
-                    <input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                        placeholder="admin@testclinica.com"
-                        required
-                    />
+            <div className="bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl flex gap-3 items-center">
+                <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0" />
+                <div className="text-xs text-emerald-800">
+                    <p className="font-bold">Acceso de Demostración</p>
+                    <p>Email: <span className="font-mono">doctor@mdpulso.com</span></p>
+                    <p>Pass: <span className="font-mono">Demo1234!</span></p>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-slate-700" htmlFor="password">Contraseña</label>
-                    <input
-                        id="password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                        required
-                    />
+            </div>
+
+            <form onSubmit={handleLogin} className="flex flex-col gap-5">
+                <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-slate-700 ml-1">Email Profesional</label>
+                    <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <input
+                            type="email"
+                            required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm focus:border-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                            placeholder="nombre@clinica.com"
+                        />
+                    </div>
                 </div>
 
-                {error && <p className="text-xs font-medium text-red-500">{error}</p>}
+                <div className="space-y-1.5">
+                    <div className="flex justify-between items-center ml-1">
+                        <label className="text-sm font-semibold text-slate-700">Contraseña</label>
+                        <Link href="#" className="text-xs text-emerald-600 hover:underline">¿La olvidaste?</Link>
+                    </div>
+                    <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <input
+                            type="password"
+                            required
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm focus:border-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                            placeholder="••••••••"
+                        />
+                    </div>
+                </div>
 
                 <button
                     type="submit"
                     disabled={loading}
-                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                    className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50"
                 >
-                    {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+                    {loading ? (
+                        <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Verificando acceso...
+                        </>
+                    ) : (
+                        <>
+                            Entrar al Panel
+                            <ArrowRight className="h-4 w-4" />
+                        </>
+                    )}
                 </button>
             </form>
 
-            <div className="text-center text-sm text-slate-500">
-                ¿No tienes cuenta?{' '}
-                <Link href="/register" className="font-semibold text-emerald-600 hover:text-emerald-500">
-                    Regístrate ahora
-                </Link>
+            <div className="text-center">
+                <p className="text-xs text-slate-400">
+                    ¿No tienes una cuenta? {' '}
+                    <Link href="/register" className="font-bold text-slate-900 hover:text-emerald-600 underline-offset-4 hover:underline transition-colors">
+                        Registra tu clínica
+                    </Link>
+                </p>
             </div>
-        </div>
+        </motion.div>
     )
 }

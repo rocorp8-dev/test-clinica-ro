@@ -1,23 +1,37 @@
-# PROTOCOLO DE DESARROLLO: TEST-CLINICA
+# 🏭 PROTOCOLO DE DESARROLLO AUTÓNOMO (FACTORY v2.0)
 
-## FASE 1: INITIAL SETUP (🏗️)
-1. **Initialize Next.js**: Crear estructura base con App Router, Tailwind y TypeScript.
-2. **Supabase Integration**: Configurar cliente de Supabase y variables de entorno.
-3. **Database Schema**: Ejecutar las queries de `CONFIG.md` en Supabase.
-## AVANCE DEL PROYECTO
-
-- **FASE 1: SETUP INICIAL** (✅) - Next.js, Supabase, Estructura.
-- **FASE 2: AUTH & LAYOUT** (✅) - Login Emerald, Sidebar, Layout.
-- **FASE 3: DASHBOARD & MÓDULOS** (✅) - Datos reales, Pacientes, Citas.
-- **FASE 4: POLISHING & DEPLOY** (✅) - Sonner, Header, Git Commit.
+## 🚨 REGLAS DE EJECUCIÓN EJECUTIVA
+1. **CERO PREGUNTAS**: El humano NO está. Toma decisiones ejecutivas. Elige siempre la opción más profesional y escalable.
+2. **NO TE DETENGAS**: Si algo falla, lee el error, corrige y reintenta inmediatamente. Si un approach no funciona, cambia de estrategia. No pares hasta ver "verde".
+3. **SE PROACTIVO**: No esperes instrucciones. Si falta un componente, créalo. Si ves una mejora posible, impleméntala. Instala las dependencias necesarias sin pedir permiso.
+4. **SISTEMA CERRADO**: Utiliza tus herramientas (Supabase, Next.js, etc.) para auto-gestionar credenciales, tablas y validaciones. Eres autosuficiente.
+5. **CERO PLACEHOLDERS**: Cada componente, página y formulario DEBE estar completamente implementado. Código 100% funcional. NUNCA dejes comentarios como "TODO" o "Implementar aquí".
 
 ---
 
-## 🛠 TAREAS FINALIZADAS
-1. [x] Interfaz Premium Emerald activada.
-2. [x] Conexión bidireccional con Supabase.
-3. [x] Sistema de Notificaciones (Toasts).
-4. [x] Repositorio Git inicializado localmente.
+## 🏗️ FASES DE CONSTRUCCIÓN
+
+### FASE 1: ARQUITECTURA & BASE (✅)
+1. **Mapeo de Config**: Leer `CONFIG.md` (Completado).
+2. **Setup Técnico**: Next.js 14, Tailwind Emerald, TypeScript (Completado).
+3. **Infraestructura**: Supabase Auth + DB (Completado).
+
+### FASE 2: AUTH & PROTECCIÓN (✅)
+1. **Sistema de Acceso**: Login Emerald funcional (Completado).
+2. **Middleware**: Rutas protegidas (Completado).
+3. **Layout Maestro**: Sidebar y Branding MdPulso (Completado).
+
+### FASE 3: NÚCLEO FUNCIONAL (✅)
+1. **Dashboard**: KPIs y Citas de hoy (Completado).
+2. **Módulos**: Pacientes, Agenda, Ajustes (Completado).
+3. **Persistencia**: CRUD contra Supabase (Completado).
+
+### FASE 4: CALIDAD & DEPLOY (🏗️)
+1. **Validation (Playwright)**: Ejecutar tests E2E. Login con `doctor@mdpulso.com / Demo1234!` debe ser verificado periódicamente.
+2. **Polishing**: Micro-interacciones y UX perfeccionada (En proceso).
+3. **Producción**: Despliegue en **mdpulso-ro.vercel.app** (Activo).
 
 ---
-**REGLA:** No pasar a la siguiente fase sin validar que la anterior funciona al 100%.
+
+## 🎯 META FINAL
+La app ya está pública. El objetivo ahora es mantenimiento autónomo y mejoras proactivas.
