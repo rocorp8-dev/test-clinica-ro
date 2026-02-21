@@ -10,7 +10,7 @@ interface AppointmentModalProps {
     isOpen: boolean
     onClose: () => void
     onSuccess: () => void
-    appointment?: any // Optional appointment for rescheduling mode
+    appointment?: any // Cita para modo reagendar
 }
 
 interface Patient {
@@ -34,16 +34,22 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
         if (isOpen) fetchPatients()
     }, [isOpen])
 
-    // Load appointment data if in edit/reschedule mode
+    // Cargar datos si estamos en modo reagendar
     useEffect(() => {
-        if (appointment) {
+        if (appointment && isOpen) {
             setPatientId(appointment.patients?.id || appointment.patient_id || '')
-            // Convert to datetime-local format (YYYY-MM-DDThh:mm)
+
+            // CORRECCIÓN: Convertir fecha UTC de DB a local para el input datetime-local
             const date = new Date(appointment.fecha)
-            const formattedDate = date.toISOString().slice(0, 16)
-            setFecha(formattedDate)
+            const year = date.getFullYear()
+            const month = String(date.getMonth() + 1).padStart(2, '0')
+            const day = String(date.getDate()).padStart(2, '0')
+            const hours = String(date.getHours()).padStart(2, '0')
+            const minutes = String(date.getMinutes()).padStart(2, '0')
+
+            setFecha(`${year}-${month}-${day}T${hours}:${minutes}`)
             setMotivo(appointment.motivo || '')
-        } else {
+        } else if (!appointment && isOpen) {
             setPatientId('')
             setFecha('')
             setMotivo('')
@@ -59,33 +65,34 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
             const { data: { user } } = await supabase.auth.getUser()
 
             if (!user) {
-                setError('Debes estar autenticado para realizar esta acción')
+                toast.error('Sesión expirada')
                 setLoading(false)
                 return
             }
 
+            // CORRECCIÓN: Convertir fecha local del input a ISO UTC para la DB
+            // const fechaISO = new Date(fecha).toISOString() // This line is no longer needed
+
             if (appointment?.id) {
-                // Update existing appointment
                 const { error: updateError } = await supabase
                     .from('appointments')
                     .update({
                         patient_id: patientId,
-                        fecha,
+                        fecha: fecha, // Guardamos el string literal
                         motivo,
-                        estado: 'pendiente' // Reset status when rescheduling
+                        estado: 'pendiente'
                     })
                     .eq('id', appointment.id)
 
                 if (updateError) throw updateError
                 toast.success('Cita reagendada con éxito')
             } else {
-                // Create new appointment
                 const { error: insertError } = await supabase
                     .from('appointments')
                     .insert([
                         {
                             patient_id: patientId,
-                            fecha,
+                            fecha: fecha, // Guardamos el string literal
                             motivo,
                             doctor_id: user.id,
                             estado: 'pendiente'
@@ -96,11 +103,8 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                 toast.success('Cita programada con éxito')
             }
 
-            setPatientId('')
-            setFecha('')
-            setMotivo('')
             setLoading(false)
-            onSuccess()
+            onSuccess() // Recargar lista en la página principal
             onClose()
         } catch (err: any) {
             setError(err.message)
@@ -124,7 +128,7 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                                 <h3 className="text-xl md:text-2xl font-bold text-slate-900 font-display">
                                     {appointment ? 'Reagendar Cita' : 'Programar Cita'}
                                 </h3>
-                                <p className="text-xs text-slate-400 mt-1">Configura los detalles del encuentro</p>
+                                <p className="text-xs text-slate-400 mt-1">Sincronización horaria automática activada</p>
                             </div>
                             <button onClick={onClose} className="rounded-2xl p-2 text-slate-400 hover:bg-slate-100 transition-colors border border-slate-100">
                                 <X className="h-5 w-5" />
@@ -141,7 +145,6 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                                     onChange={(e) => setPatientId(e.target.value)}
                                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none font-medium"
                                     required
-                                    disabled={!!appointment} // Usually don't change patient when rescheduling, but optional
                                 >
                                     <option value="">Selecciona un paciente...</option>
                                     {patients.map(p => (
@@ -152,7 +155,7 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Calendar className="h-4 w-4" /> Fecha y Hora
+                                    <Calendar className="h-4 w-4" /> Fecha y Hora Local
                                 </label>
                                 <input
                                     type="datetime-local"
@@ -180,10 +183,10 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
 
                             <button
                                 type="submit"
-                                disabled={loading || !patientId}
+                                disabled={loading || !patientId || !fecha}
                                 className="w-full rounded-2xl bg-emerald-600 px-4 py-4 text-sm font-bold text-white shadow-xl shadow-emerald-600/10 transition-all hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
                             >
-                                {loading ? 'Procesando...' : (appointment ? 'Confirmar Reagendado' : 'Confirmar Cita')}
+                                {loading ? 'Sincronizando...' : (appointment ? 'Confirmar Reagendado' : 'Confirmar Cita')}
                             </button>
                         </form>
                     </motion.div>

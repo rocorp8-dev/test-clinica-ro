@@ -229,7 +229,21 @@ export default function AppointmentsPage() {
                         >
                             <div className="flex flex-col items-center gap-2 pt-2 min-w-[50px] md:min-w-[60px]">
                                 <span className={`text-[11px] md:text-sm font-bold ${app.estado === 'cancelada' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                                    {new Date(app.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {(() => {
+                                        // Extraemos la hora directamente del string para evitar desfases de zona horaria
+                                        const datePart = app.fecha.split('T');
+                                        if (datePart.length < 2) return '--:--';
+
+                                        const timePart = datePart[1].split(':');
+                                        let hours = parseInt(timePart[0]);
+                                        const minutes = timePart[1];
+                                        const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
+
+                                        hours = hours % 12;
+                                        hours = hours ? hours : 12; // la hora '0' debería ser '12'
+
+                                        return `${hours}:${minutes} ${ampm}`;
+                                    })()}
                                 </span>
                                 <div className="w-px flex-1 bg-slate-200 group-last:bg-transparent" />
                             </div>
