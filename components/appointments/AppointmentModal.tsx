@@ -119,6 +119,19 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
         })
     }
 
+    const handleDateClick = () => {
+        const input = document.getElementById('premium-date-input') as HTMLInputElement;
+        if (input) {
+            try {
+                // @ts-ignore - showPicker is modern API
+                if (input.showPicker) input.showPicker();
+                else input.focus();
+            } catch (e) {
+                input.focus();
+            }
+        }
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -183,14 +196,17 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                                 </label>
                                 <div className="relative">
                                     {/* El input real está oculto pero funcional para que el buscador nativo se active al tocar el contenedor */}
-                                    <div className="group relative w-full rounded-[1.5rem] border-2 border-emerald-50 bg-emerald-50/20 px-6 py-5 flex items-center gap-4 hover:border-emerald-500/30 transition-all cursor-pointer">
+                                    <div
+                                        onClick={handleDateClick}
+                                        className="group relative w-full rounded-[1.5rem] border-2 border-emerald-50 bg-emerald-50/20 px-6 py-5 flex items-center gap-4 hover:border-emerald-500/30 transition-all cursor-pointer"
+                                    >
                                         <div className="h-12 w-12 rounded-2xl bg-white border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm transition-transform group-hover:scale-105">
                                             <Clock className="h-6 w-6" />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mb-0.5 opacity-60">Toque para seleccionar</p>
                                             <p className="text-sm md:text-base font-black text-slate-900 truncate capitalize">
-                                                {fecha ? formatReadableDate(fecha) : 'Configurar día y hora'}
+                                                {fecha ? formatReadableDate(fecha) : 'Click para configurar'}
                                             </p>
                                         </div>
                                         <div className="h-8 w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -199,10 +215,11 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
 
                                         {/* Input nativo oculto pero ocupando todo el card */}
                                         <input
+                                            id="premium-date-input"
                                             type="datetime-local"
                                             value={fecha}
                                             onChange={(e) => setFecha(e.target.value)}
-                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                            className="absolute invisible"
                                             required
                                         />
                                     </div>
