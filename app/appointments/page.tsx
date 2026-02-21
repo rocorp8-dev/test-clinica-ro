@@ -93,12 +93,14 @@ export default function AppointmentsPage() {
         }
     }
 
-    const appointmentsForSelectedDate = appointments.filter(app => {
-        const appDate = new Date(app.fecha)
-        return appDate.getDate() === selectedDate.getDate() &&
-            appDate.getMonth() === selectedDate.getMonth() &&
-            appDate.getFullYear() === selectedDate.getFullYear()
-    })
+    const appointmentsForSelectedDate = appointments
+        .filter(app => {
+            const appDate = new Date(app.fecha)
+            return appDate.getDate() === selectedDate.getDate() &&
+                appDate.getMonth() === selectedDate.getMonth() &&
+                appDate.getFullYear() === selectedDate.getFullYear()
+        })
+        .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center p-20 gap-4">
