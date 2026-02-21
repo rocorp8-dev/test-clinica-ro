@@ -24,6 +24,8 @@ export default function AppointmentsPage() {
     const [selectedDate, setSelectedDate] = useState(new Date())
     const [currentMonth, setCurrentMonth] = useState(new Date())
 
+    const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
+
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -74,6 +76,23 @@ export default function AppointmentsPage() {
         }
     }
 
+    const cancelAppointment = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from('appointments')
+                .update({ estado: 'cancelada' })
+                .eq('id', id)
+
+            if (error) throw error
+            toast.success('Cita cancelada', {
+                description: 'El espacio ha sido liberado en la agenda.'
+            })
+            loadAppointments()
+        } catch (err) {
+            toast.error('Error al cancelar')
+        }
+    }
+
     const appointmentsForSelectedDate = appointments.filter(app => {
         const appDate = new Date(app.fecha)
         return appDate.getDate() === selectedDate.getDate() &&
@@ -90,6 +109,7 @@ export default function AppointmentsPage() {
 
     return (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-700">
+            {/* ... header and controls remain same ... */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6">
                 <div className="space-y-1">
                     <h1 className="text-2xl md:text-3xl font-bold text-slate-900 font-display">Agenda Médica</h1>
@@ -104,7 +124,10 @@ export default function AppointmentsPage() {
                         Hoy
                     </button>
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => {
+                            setSelectedAppointment(null)
+                            setIsModalOpen(true)
+                        }}
                         className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 rounded-xl md:rounded-2xl bg-slate-900 px-4 md:px-6 py-2.5 md:py-4 text-xs md:text-sm font-bold text-white shadow-xl transition-all hover:bg-slate-800 active:scale-95 text-nowrap"
                     >
                         <Plus className="h-5 w-5" />
@@ -205,7 +228,7 @@ export default function AppointmentsPage() {
                             className="flex gap-3 md:gap-6 group"
                         >
                             <div className="flex flex-col items-center gap-2 pt-2 min-w-[50px] md:min-w-[60px]">
-                                <span className="text-[11px] md:text-sm font-bold text-slate-900">
+                                <span className={`text-[11px] md:text-sm font-bold ${app.estado === 'cancelada' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                                     {new Date(app.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                                 <div className="w-px flex-1 bg-slate-200 group-last:bg-transparent" />
@@ -213,7 +236,9 @@ export default function AppointmentsPage() {
 
                             <div className={`flex-1 rounded-[1.4rem] md:rounded-[1.8rem] p-4 md:p-6 border transition-all ${app.estado === 'confirmada'
                                 ? 'bg-emerald-600 border-emerald-500 text-white shadow-xl shadow-emerald-200'
-                                : 'bg-white border-slate-100 hover:border-emerald-200 hover:shadow-lg'
+                                : app.estado === 'cancelada'
+                                    ? 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
+                                    : 'bg-white border-slate-100 hover:border-emerald-200 hover:shadow-lg'
                                 }`}>
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-start gap-3 md:gap-4 min-w-0">
@@ -222,7 +247,7 @@ export default function AppointmentsPage() {
                                             <User className={`h-4 w-4 md:h-5 md:w-5 ${app.estado === 'confirmada' ? 'text-white' : 'text-slate-400'}`} />
                                         </div>
                                         <div className="min-w-0">
-                                            <p className="font-bold text-base md:text-lg leading-tight truncate">{app.patients?.nombre}</p>
+                                            <p className={`font-bold text-base md:text-lg leading-tight truncate ${app.estado === 'cancelada' ? 'line-through' : ''}`}>{app.patients?.nombre}</p>
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 opacity-80 text-[10px] md:text-xs">
                                                 <span className="flex items-center gap-1">
                                                     <Clock className="h-3 w-3" />
@@ -234,7 +259,7 @@ export default function AppointmentsPage() {
                                         </div>
                                     </div>
                                     <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
-                                        <span className={`rounded-full px-2 md:px-3 py-1 text-[8px] md:text-[10px] font-bold uppercase tracking-widest ${app.estado === 'confirmada' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'
+                                        <span className={`rounded-full px-2 md:px-3 py-1 text-[8px] md:text-[10px] font-bold uppercase tracking-widest ${app.estado === 'confirmada' ? 'bg-white/20' : app.estado === 'cancelada' ? 'bg-slate-200 text-slate-500' : 'bg-amber-100 text-amber-700'
                                             }`}>
                                             {app.estado}
                                         </span>
@@ -247,15 +272,28 @@ export default function AppointmentsPage() {
                                                     OK
                                                 </button>
                                             )}
-                                            <button
-                                                onClick={() => toast.info('Opciones', {
-                                                    description: 'Pospón o cancela desde el panel.'
-                                                })}
-                                                className={`p-1.5 md:p-2 rounded-lg transition-colors ${app.estado === 'confirmada' ? 'hover:bg-white/10' : 'hover:bg-slate-50'
-                                                    }`}
-                                            >
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </button>
+                                            {app.estado !== 'cancelada' && (
+                                                <button
+                                                    onClick={() => toast('Opciones de Cita', {
+                                                        description: `Gestión para ${app.patients?.nombre}`,
+                                                        action: {
+                                                            label: 'Reagendar',
+                                                            onClick: () => {
+                                                                setSelectedAppointment(app)
+                                                                setIsModalOpen(true)
+                                                            }
+                                                        },
+                                                        cancel: {
+                                                            label: 'Cancelar Cita',
+                                                            onClick: () => cancelAppointment(app.id)
+                                                        }
+                                                    } as any)}
+                                                    className={`p-1.5 md:p-2 rounded-lg transition-colors ${app.estado === 'confirmada' ? 'hover:bg-white/10' : 'hover:bg-slate-50'
+                                                        }`}
+                                                >
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -272,8 +310,12 @@ export default function AppointmentsPage() {
             </div>
             <AppointmentModal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                onClose={() => {
+                    setIsModalOpen(false)
+                    setSelectedAppointment(null)
+                }}
                 onSuccess={loadAppointments}
+                appointment={selectedAppointment}
             />
         </div>
     )

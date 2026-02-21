@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { X, Calendar, User, Clock, AlignLeft } from 'lucide-react'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface AppointmentModalProps {
     isOpen: boolean
     onClose: () => void
     onSuccess: () => void
+    appointment?: any // Optional appointment for rescheduling mode
 }
 
 interface Patient {
@@ -16,9 +18,7 @@ interface Patient {
     nombre: string
 }
 
-import { motion, AnimatePresence } from 'framer-motion'
-
-export default function AppointmentModal({ isOpen, onClose, onSuccess }: AppointmentModalProps) {
+export default function AppointmentModal({ isOpen, onClose, onSuccess, appointment }: AppointmentModalProps) {
     const [patientId, setPatientId] = useState('')
     const [fecha, setFecha] = useState('')
     const [motivo, setMotivo] = useState('')
@@ -34,42 +34,77 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess }: Appoint
         if (isOpen) fetchPatients()
     }, [isOpen])
 
+    // Load appointment data if in edit/reschedule mode
+    useEffect(() => {
+        if (appointment) {
+            setPatientId(appointment.patients?.id || appointment.patient_id || '')
+            // Convert to datetime-local format (YYYY-MM-DDThh:mm)
+            const date = new Date(appointment.fecha)
+            const formattedDate = date.toISOString().slice(0, 16)
+            setFecha(formattedDate)
+            setMotivo(appointment.motivo || '')
+        } else {
+            setPatientId('')
+            setFecha('')
+            setMotivo('')
+        }
+    }, [appointment, isOpen])
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
         setError(null)
 
-        const { data: { user } } = await supabase.auth.getUser()
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
 
-        if (!user) {
-            setError('Debes estar autenticado para agendar citas')
-            setLoading(false)
-            return
-        }
+            if (!user) {
+                setError('Debes estar autenticado para realizar esta acción')
+                setLoading(false)
+                return
+            }
 
-        const { error: insertError } = await supabase
-            .from('appointments')
-            .insert([
-                {
-                    patient_id: patientId,
-                    fecha,
-                    motivo,
-                    doctor_id: user.id,
-                    estado: 'pendiente'
-                },
-            ])
+            if (appointment?.id) {
+                // Update existing appointment
+                const { error: updateError } = await supabase
+                    .from('appointments')
+                    .update({
+                        patient_id: patientId,
+                        fecha,
+                        motivo,
+                        estado: 'pendiente' // Reset status when rescheduling
+                    })
+                    .eq('id', appointment.id)
 
-        if (insertError) {
-            setError(insertError.message)
-            setLoading(false)
-        } else {
+                if (updateError) throw updateError
+                toast.success('Cita reagendada con éxito')
+            } else {
+                // Create new appointment
+                const { error: insertError } = await supabase
+                    .from('appointments')
+                    .insert([
+                        {
+                            patient_id: patientId,
+                            fecha,
+                            motivo,
+                            doctor_id: user.id,
+                            estado: 'pendiente'
+                        },
+                    ])
+
+                if (insertError) throw insertError
+                toast.success('Cita programada con éxito')
+            }
+
             setPatientId('')
             setFecha('')
             setMotivo('')
             setLoading(false)
-            toast.success('Cita programada con éxito')
             onSuccess()
             onClose()
+        } catch (err: any) {
+            setError(err.message)
+            setLoading(false)
         }
     }
 
@@ -86,7 +121,9 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess }: Appoint
                     >
                         <div className="flex items-center justify-between mb-8">
                             <div>
-                                <h3 className="text-xl md:text-2xl font-bold text-slate-900 font-display">Programar Cita</h3>
+                                <h3 className="text-xl md:text-2xl font-bold text-slate-900 font-display">
+                                    {appointment ? 'Reagendar Cita' : 'Programar Cita'}
+                                </h3>
                                 <p className="text-xs text-slate-400 mt-1">Configura los detalles del encuentro</p>
                             </div>
                             <button onClick={onClose} className="rounded-2xl p-2 text-slate-400 hover:bg-slate-100 transition-colors border border-slate-100">
@@ -104,6 +141,7 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess }: Appoint
                                     onChange={(e) => setPatientId(e.target.value)}
                                     className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none font-medium"
                                     required
+                                    disabled={!!appointment} // Usually don't change patient when rescheduling, but optional
                                 >
                                     <option value="">Selecciona un paciente...</option>
                                     {patients.map(p => (
@@ -145,7 +183,7 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess }: Appoint
                                 disabled={loading || !patientId}
                                 className="w-full rounded-2xl bg-emerald-600 px-4 py-4 text-sm font-bold text-white shadow-xl shadow-emerald-600/10 transition-all hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
                             >
-                                {loading ? 'Agendando...' : 'Confirmar Cita'}
+                                {loading ? 'Procesando...' : (appointment ? 'Confirmar Reagendado' : 'Confirmar Cita')}
                             </button>
                         </form>
                     </motion.div>
