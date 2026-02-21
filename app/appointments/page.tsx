@@ -214,10 +214,15 @@ export default function AppointmentsPage() {
                     </div>
 
                     <div className="hidden md:block rounded-3xl bg-slate-900 p-6 text-white shadow-xl">
-                        <h3 className="font-bold mb-2 text-emerald-400">Estado Agenda</h3>
-                        <p className="text-xs text-slate-400 mb-4">Optimización horaria activa basada en hora local.</p>
+                        <h3 className="font-bold mb-2 text-emerald-400">Disponibilidad</h3>
+                        <p className="text-xs text-slate-400 mb-4">
+                            Tienes un {Math.min(100, appointmentsForSelectedDate.length * 12.5)}% de ocupación para este día.
+                        </p>
                         <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, appointmentsForSelectedDate.length * 20)}%` }} />
+                            <div
+                                className="h-full bg-emerald-500 rounded-full transition-all duration-700 ease-out"
+                                style={{ width: `${Math.min(100, appointmentsForSelectedDate.length * 12.5)}%` }}
+                            />
                         </div>
                     </div>
                 </div>
