@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { X, Calendar, User, Clock, AlignLeft, Sparkles, ChevronRight, Check } from 'lucide-react'
+import { X, Calendar, User, Clock, AlignLeft, Sparkles, ChevronRight, Check, History, Timer } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -25,9 +25,6 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [patients, setPatients] = useState<Patient[]>([])
-
-    // Estados para el selector premium
-    const [view, setView] = useState<'form' | 'date-picker'>('form')
 
     useEffect(() => {
         const fetchPatients = async () => {
@@ -107,23 +104,11 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
         }
     }
 
-    const formatReadableDate = (dateStr: string) => {
-        if (!dateStr) return 'Seleccionar fecha y hora'
-        const d = new Date(dateStr)
-        return d.toLocaleDateString('es-ES', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            hour: '2-digit',
-            minute: '2-digit'
-        })
-    }
-
     const handleDateClick = () => {
         const input = document.getElementById('premium-date-input') as HTMLInputElement;
         if (input) {
             try {
-                // @ts-ignore - showPicker is modern API
+                // @ts-ignore
                 if (input.showPicker) input.showPicker();
                 else input.focus();
             } catch (e) {
@@ -132,88 +117,114 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
         }
     };
 
+    // Helper para extraer datos visuales de la fecha
+    const getDateInfo = (dateStr: string) => {
+        if (!dateStr) return null;
+        const d = new Date(dateStr);
+        return {
+            dayName: d.toLocaleDateString('es-ES', { weekday: 'long' }),
+            dayNumber: d.getDate(),
+            monthName: d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', ''),
+            year: d.getFullYear(),
+            time: d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true })
+        };
+    };
+
+    const dateInfo = getDateInfo(fecha);
+
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-slate-900/40 backdrop-blur-md p-0 md:p-4">
+                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 md:p-4">
                     <motion.div
                         initial={{ opacity: 0, y: 100, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 100, scale: 0.95 }}
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="w-full max-w-lg rounded-t-[3rem] md:rounded-[2.5rem] bg-white shadow-2xl overflow-hidden flex flex-col border border-slate-200"
+                        className="w-full max-w-xl rounded-t-[3rem] md:rounded-[2.5rem] bg-white shadow-2xl overflow-hidden flex flex-col border border-slate-200"
                     >
                         {/* Premium Header Banner */}
-                        <div className="relative h-28 bg-slate-50 overflow-hidden flex-shrink-0 border-b border-slate-100">
+                        <div className="relative h-24 bg-slate-50 overflow-hidden flex-shrink-0 border-b border-slate-100/60">
                             <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-white to-emerald-50/20" />
 
                             <div className="relative h-full px-8 flex items-center justify-between">
                                 <div className="space-y-0.5">
-                                    <h3 className="text-2xl md:text-3xl font-black text-slate-900 font-display tracking-tight leading-none">
-                                        {appointment ? 'Reagendar' : 'Programar Cita'}
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-600/60">Planificador de Turnos</span>
+                                    </div>
+                                    <h3 className="text-2xl md:text-3xl font-black text-slate-900 font-display tracking-tighter leading-none">
+                                        {appointment ? 'Reagendar Cita' : 'Programar Nueva Cita'}
                                     </h3>
-                                    <p className="text-[10px] uppercase tracking-widest font-black text-emerald-600/60 pb-1">
-                                        MdPulso Inteligente
-                                    </p>
                                 </div>
                                 <button
                                     onClick={onClose}
-                                    className="rounded-full p-2.5 text-slate-400 hover:bg-white hover:text-slate-900 transition-all border border-slate-100 bg-white/50 backdrop-blur-sm"
+                                    className="rounded-full p-2.5 text-slate-400 hover:bg-white hover:text-slate-900 transition-all border border-slate-100 bg-white shadow-sm"
                                 >
                                     <X className="h-5 w-5" />
                                 </button>
                             </div>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto max-h-[75vh]">
-                            {/* Patient Card */}
-                            <div className="space-y-3">
+                        <form onSubmit={handleSubmit} className="p-8 space-y-8 overflow-y-auto max-h-[80vh]">
+                            {/* Visual Date Dashboard */}
+                            <div className="space-y-4">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                    <User className="h-3 w-3 text-emerald-500" /> Paciente
+                                    <Sparkles className="h-3 w-3 text-emerald-500" /> Configuración Esencial
                                 </label>
-                                <div className="relative group">
-                                    <select
-                                        value={patientId}
-                                        onChange={(e) => setPatientId(e.target.value)}
-                                        className="w-full appearance-none rounded-[1.5rem] border-2 border-slate-50 bg-slate-50 px-6 py-4.5 text-sm font-bold text-slate-900 focus:bg-white focus:border-emerald-500/30 transition-all outline-none"
-                                        required
-                                    >
-                                        <option value="">Seleccionar paciente...</option>
-                                        {patients.map(p => (
-                                            <option key={p.id} value={p.id}>{p.nombre}</option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-5 top-1/2 -translate-y-1/2 p-1.5 bg-white rounded-xl shadow-sm border border-slate-100 pointer-events-none group-focus-within:rotate-180 transition-transform">
-                                        <ChevronRight className="h-4 w-4 text-slate-400 rotate-90" />
-                                    </div>
-                                </div>
-                            </div>
 
-                            {/* Date Selection Card - REDESIGNED */}
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                    <Calendar className="h-3 w-3 text-emerald-500" /> Horario de Atención
-                                </label>
-                                <div className="relative">
-                                    {/* El input real está oculto pero funcional para que el buscador nativo se active al tocar el contenedor */}
-                                    <div
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Date Visual Plate */}
+                                    <motion.div
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.99 }}
                                         onClick={handleDateClick}
-                                        className="group relative w-full rounded-[1.5rem] border-2 border-emerald-50 bg-emerald-50/20 px-6 py-5 flex items-center gap-4 hover:border-emerald-500/30 transition-all cursor-pointer"
+                                        className="relative overflow-hidden group cursor-pointer rounded-3xl border-2 border-slate-50 bg-slate-50/30 p-5 transition-all hover:border-emerald-500/20 hover:bg-white flex items-center gap-5"
                                     >
-                                        <div className="h-12 w-12 rounded-2xl bg-white border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm transition-transform group-hover:scale-105">
-                                            <Clock className="h-6 w-6" />
+                                        <div className="flex flex-col items-center justify-center h-16 w-16 rounded-2xl bg-white border border-slate-100 text-slate-900 shadow-sm">
+                                            {dateInfo ? (
+                                                <>
+                                                    <span className="text-[9px] font-black uppercase text-emerald-600 leading-none mb-1">{dateInfo.monthName}</span>
+                                                    <span className="text-2xl font-black leading-none">{dateInfo.dayNumber}</span>
+                                                </>
+                                            ) : (
+                                                <Calendar className="h-6 w-6 text-slate-300" />
+                                            )}
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mb-0.5 opacity-60">Toque para seleccionar</p>
-                                            <p className="text-sm md:text-base font-black text-slate-900 truncate capitalize">
-                                                {fecha ? formatReadableDate(fecha) : 'Click para configurar'}
+                                        <div className="flex-1">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">Fecha del Encuentro</p>
+                                            <p className="text-sm font-black text-slate-900 capitalize">
+                                                {dateInfo ? dateInfo.dayName : 'Seleccionar Día'}
                                             </p>
+                                            <p className="text-[10px] font-bold text-slate-400">{dateInfo ? dateInfo.year : 'Calendario 2026'}</p>
                                         </div>
-                                        <div className="h-8 w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Check className="h-4 w-4" />
+                                        <div className="h-8 w-8 rounded-full bg-slate-100 group-hover:bg-emerald-500 group-hover:text-white flex items-center justify-center transition-colors">
+                                            <ChevronRight className="h-4 w-4" />
+                                        </div>
+                                    </motion.div>
+
+                                    {/* Time Visual Plate */}
+                                    <motion.div
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.99 }}
+                                        onClick={handleDateClick}
+                                        className="relative overflow-hidden group cursor-pointer rounded-3xl border-2 border-slate-50 bg-slate-50/30 p-5 transition-all hover:border-emerald-500/20 hover:bg-white flex items-center gap-5"
+                                    >
+                                        <div className="flex items-center justify-center h-16 w-16 rounded-2xl bg-white border border-slate-100 text-emerald-600 shadow-sm">
+                                            <Clock className="h-7 w-7" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">Hora Establecida</p>
+                                            <p className="text-sm font-black text-emerald-600 uppercase tracking-tight">
+                                                {dateInfo ? dateInfo.time : '-- : --'}
+                                            </p>
+                                            <p className="text-[10px] font-bold text-slate-400">Duración: 45 min</p>
+                                        </div>
+                                        <div className="h-8 w-8 rounded-full bg-slate-100 group-hover:bg-emerald-500 group-hover:text-white flex items-center justify-center transition-colors">
+                                            <Timer className="h-4 w-4" />
                                         </div>
 
-                                        {/* Input nativo oculto pero ocupando todo el card */}
+                                        {/* El input real escondido */}
                                         <input
                                             id="premium-date-input"
                                             type="datetime-local"
@@ -222,6 +233,29 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                                             className="absolute invisible"
                                             required
                                         />
+                                    </motion.div>
+                                </div>
+                            </div>
+
+                            {/* Patient Card */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                    <User className="h-3 w-3 text-emerald-500" /> Datos del Paciente
+                                </label>
+                                <div className="relative group">
+                                    <select
+                                        value={patientId}
+                                        onChange={(e) => setPatientId(e.target.value)}
+                                        className="w-full appearance-none rounded-[1.8rem] border-2 border-slate-50 bg-slate-50/50 px-7 py-5 text-sm font-black text-slate-900 focus:bg-white focus:border-emerald-500/30 transition-all outline-none"
+                                        required
+                                    >
+                                        <option value="">Buscar en el registro...</option>
+                                        {patients.map(p => (
+                                            <option key={p.id} value={p.id}>{p.nombre}</option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-6 top-1/2 -translate-y-1/2 p-2 bg-white rounded-2xl shadow-sm border border-slate-100 pointer-events-none group-focus-within:rotate-180 transition-transform">
+                                        <ChevronRight className="h-4 w-4 text-slate-400 rotate-90" />
                                     </div>
                                 </div>
                             </div>
@@ -229,51 +263,56 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                             {/* Motivo Card */}
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                    <AlignLeft className="h-3 w-3 text-emerald-500" /> Motivo Médico
+                                    <AlignLeft className="h-3 w-3 text-emerald-500" /> Detalles Médicos
                                 </label>
                                 <div className="relative">
                                     <textarea
                                         value={motivo}
                                         onChange={(e) => setMotivo(e.target.value)}
-                                        className="w-full rounded-[1.5rem] border-2 border-slate-50 bg-slate-50 px-6 py-5 text-sm font-medium text-slate-900 focus:bg-white focus:border-emerald-500/30 transition-all outline-none min-h-[100px] resize-none leading-relaxed placeholder:text-slate-300"
-                                        placeholder="Describa el motivo de la consulta..."
+                                        className="w-full rounded-[1.8rem] border-2 border-slate-50 bg-slate-50/50 px-7 py-5 text-sm font-medium text-slate-900 focus:bg-white focus:border-emerald-500/30 transition-all outline-none min-h-[100px] resize-none leading-relaxed placeholder:text-slate-300"
+                                        placeholder="Motivo de consulta, síntomas o notas preventivas..."
                                     />
+                                    <div className="absolute right-6 bottom-6 opacity-10">
+                                        <History className="h-8 w-8 text-slate-900" />
+                                    </div>
                                 </div>
                             </div>
 
                             {error && (
                                 <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="p-4 rounded-2xl bg-rose-50 border border-rose-100 flex items-center gap-3"
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="p-5 rounded-[1.5rem] bg-rose-50 border border-rose-100 flex items-center gap-4 shadow-sm"
                                 >
-                                    <div className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
-                                    <p className="text-xs font-bold text-rose-600">{error}</p>
+                                    <div className="h-3 w-3 rounded-full bg-rose-500 animate-pulse flex-shrink-0" />
+                                    <p className="text-xs font-black text-rose-600">{error}</p>
                                 </motion.div>
                             )}
 
-                            {/* Action Area */}
-                            <div className="pt-2 flex flex-col gap-3">
+                            {/* Premium Footer Buttons */}
+                            <div className="pt-2 flex flex-col gap-4">
                                 <button
                                     type="submit"
                                     disabled={loading || !patientId || !fecha}
-                                    className="w-full group relative rounded-[1.5rem] bg-slate-900 py-5 text-sm font-black text-white shadow-2xl shadow-slate-900/10 transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 uppercase tracking-widest"
+                                    className="w-full group relative rounded-[2rem] bg-slate-900 py-6 text-sm font-black text-white shadow-2xl shadow-slate-900/10 transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-30 flex items-center justify-center gap-4 uppercase tracking-[0.2em]"
                                 >
                                     {loading ? (
-                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                        <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                     ) : (
                                         <>
-                                            <Sparkles className="h-4 w-4 text-emerald-400 group-hover:rotate-12 transition-transform" />
-                                            {appointment ? 'Reconfirmar Cita' : 'Agendar Ahora'}
+                                            <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-emerald-500 transition-colors">
+                                                <Check className="h-4 w-4" />
+                                            </div>
+                                            {appointment ? 'Reconfirmar Agenda' : 'Establecer Turno'}
                                         </>
                                     )}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="w-full py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
+                                    className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors tracking-[0.3em]"
                                 >
-                                    Cerrar Ventana
+                                    Cancelar Operación
                                 </button>
                             </div>
                         </form>
@@ -281,13 +320,5 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                 </div>
             )}
         </AnimatePresence>
-    )
-}
-
-function Loader2({ className }: { className?: string }) {
-    return (
-        <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-        </svg>
     )
 }
