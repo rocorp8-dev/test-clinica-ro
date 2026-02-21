@@ -23,13 +23,22 @@ export default function AppointmentsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [selectedDate, setSelectedDate] = useState(new Date())
     const [currentMonth, setCurrentMonth] = useState(new Date())
-
     const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
+
+    // FUNCIÓN CLAVE: Normaliza cualquier fecha a formato "Solo Fecha" (YYYY-MM-DD)
+    // para comparaciones seguras sin zonas horarias
+    const getLocalDateString = (date: Date | string) => {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
     const loadAppointments = useCallback(async () => {
         try {
@@ -85,7 +94,7 @@ export default function AppointmentsPage() {
 
             if (error) throw error
             toast.success('Cita cancelada', {
-                description: 'El espacio ha sido liberado en la agenda.'
+                description: 'El espacio ha sido liberado.'
             })
             loadAppointments()
         } catch (err) {
@@ -93,14 +102,18 @@ export default function AppointmentsPage() {
         }
     }
 
+    // FILTRADO Y ORDENAMIENTO CRONOLÓGICO REAL
     const appointmentsForSelectedDate = appointments
         .filter(app => {
-            const appDate = new Date(app.fecha)
-            return appDate.getDate() === selectedDate.getDate() &&
-                appDate.getMonth() === selectedDate.getMonth() &&
-                appDate.getFullYear() === selectedDate.getFullYear()
+            // Comparamos solo la parte de la fecha (YYYY-MM-DD)
+            return app.fecha.startsWith(getLocalDateString(selectedDate));
         })
-        .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+        .sort((a, b) => {
+            // Extraemos la hora literal para ordenar (ej: "13:30" vs "09:00")
+            const timeA = a.fecha.split('T')[1]?.substring(0, 5) || '00:00';
+            const timeB = b.fecha.split('T')[1]?.substring(0, 5) || '00:00';
+            return timeA.localeCompare(timeB);
+        });
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center p-20 gap-4">
@@ -111,7 +124,6 @@ export default function AppointmentsPage() {
 
     return (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-700">
-            {/* ... header and controls remain same ... */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6">
                 <div className="space-y-1">
                     <h1 className="text-2xl md:text-3xl font-bold text-slate-900 font-display">Agenda Médica</h1>
@@ -178,8 +190,8 @@ export default function AppointmentsPage() {
                                 }
                                 for (let d = 1; d <= daysInMonth; d++) {
                                     const dateObj = new Date(year, month, d)
-                                    const isSelected = dateObj.toDateString() === selectedDate.toDateString()
-                                    const isToday = dateObj.toDateString() === new Date().toDateString()
+                                    const isSelected = getLocalDateString(dateObj) === getLocalDateString(selectedDate)
+                                    const isToday = getLocalDateString(dateObj) === getLocalDateString(new Date())
 
                                     days.push(
                                         <div
@@ -202,8 +214,8 @@ export default function AppointmentsPage() {
                     </div>
 
                     <div className="hidden md:block rounded-3xl bg-slate-900 p-6 text-white shadow-xl">
-                        <h3 className="font-bold mb-2">Disponibilidad</h3>
-                        <p className="text-xs text-slate-400 mb-4">Tienes un {Math.min(100, appointmentsForSelectedDate.length * 20)}% de ocupación para este día.</p>
+                        <h3 className="font-bold mb-2 text-emerald-400">Estado Agenda</h3>
+                        <p className="text-xs text-slate-400 mb-4">Optimización horaria activa basada en hora local.</p>
                         <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                             <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, appointmentsForSelectedDate.length * 20)}%` }} />
                         </div>
@@ -226,25 +238,20 @@ export default function AppointmentsPage() {
                             key={app.id}
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: i * 0.1 }}
+                            transition={{ delay: i * 0.05 }}
                             className="flex gap-3 md:gap-6 group"
                         >
                             <div className="flex flex-col items-center gap-2 pt-2 min-w-[50px] md:min-w-[60px]">
-                                <span className={`text-[11px] md:text-sm font-bold ${app.estado === 'cancelada' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                                <span className={`text-[11px] md:text-sm font-bold ${app.estado === 'cancelada' ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
                                     {(() => {
-                                        // Extraemos la hora directamente del string para evitar desfases de zona horaria
-                                        const datePart = app.fecha.split('T');
-                                        if (datePart.length < 2) return '--:--';
-
-                                        const timePart = datePart[1].split(':');
-                                        let hours = parseInt(timePart[0]);
-                                        const minutes = timePart[1];
+                                        // Extracción segura y manual de la hora para evitar Timezone Shifts
+                                        const timeStr = app.fecha.split('T')[1];
+                                        if (!timeStr) return '--:--';
+                                        const [h, m] = timeStr.split(':');
+                                        let hours = parseInt(h);
                                         const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
-
-                                        hours = hours % 12;
-                                        hours = hours ? hours : 12; // la hora '0' debería ser '12'
-
-                                        return `${hours}:${minutes} ${ampm}`;
+                                        hours = hours % 12 || 12;
+                                        return `${hours}:${m} ${ampm}`;
                                     })()}
                                 </span>
                                 <div className="w-px flex-1 bg-slate-200 group-last:bg-transparent" />
@@ -253,7 +260,7 @@ export default function AppointmentsPage() {
                             <div className={`flex-1 rounded-[1.4rem] md:rounded-[1.8rem] p-4 md:p-6 border transition-all ${app.estado === 'confirmada'
                                 ? 'bg-emerald-600 border-emerald-500 text-white shadow-xl shadow-emerald-200'
                                 : app.estado === 'cancelada'
-                                    ? 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
+                                    ? 'bg-slate-50 border-slate-200 text-slate-300 opacity-60'
                                     : 'bg-white border-slate-100 hover:border-emerald-200 hover:shadow-lg'
                                 }`}>
                                 <div className="flex items-start justify-between gap-2">
@@ -275,7 +282,7 @@ export default function AppointmentsPage() {
                                         </div>
                                     </div>
                                     <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
-                                        <span className={`rounded-full px-2 md:px-3 py-1 text-[8px] md:text-[10px] font-bold uppercase tracking-widest ${app.estado === 'confirmada' ? 'bg-white/20' : app.estado === 'cancelada' ? 'bg-slate-200 text-slate-500' : 'bg-amber-100 text-amber-700'
+                                        <span className={`rounded-full px-2 md:px-3 py-1 text-[8px] md:text-[10px] font-bold uppercase tracking-widest ${app.estado === 'confirmada' ? 'bg-white/20' : app.estado === 'cancelada' ? 'bg-slate-200 text-slate-400' : 'bg-amber-100 text-amber-700'
                                             }`}>
                                             {app.estado}
                                         </span>
@@ -319,7 +326,10 @@ export default function AppointmentsPage() {
                         <div className="flex flex-col items-center justify-center p-10 md:p-20 text-center rounded-[2rem] border-2 border-dashed border-slate-100">
                             <CalendarIcon className="h-10 w-10 md:h-12 md:w-12 text-slate-200 mb-4" />
                             <p className="text-sm md:text-base text-slate-500 font-medium tracking-tight">No hay citas registradas para este día.</p>
-                            <button onClick={() => setIsModalOpen(true)} className="mt-4 text-xs md:text-sm font-bold text-emerald-600 hover:underline">Programar nueva cita</button>
+                            <button onClick={() => {
+                                setSelectedAppointment(null);
+                                setIsModalOpen(true);
+                            }} className="mt-4 text-xs md:text-sm font-bold text-emerald-600 hover:underline">Programar nueva cita</button>
                         </div>
                     )}
                 </div>
