@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Stethoscope, Mail, Lock, Loader2, ArrowRight, ShieldCheck } from 'lucide-react'
+import { Stethoscope, Mail, Lock, Loader2, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 
@@ -123,13 +123,23 @@ export default function LoginForm() {
                 </button>
             </form>
 
-            <div className="text-center">
-                <p className="text-xs text-slate-400">
-                    ¿No tienes una cuenta? {' '}
-                    <Link href="/register" className="font-bold text-slate-900 hover:text-emerald-600 underline-offset-4 hover:underline transition-colors">
-                        Registra tu clínica
-                    </Link>
-                </p>
+            <div className="flex flex-col gap-4">
+                <Link
+                    href="/presentacion"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-slate-100 px-4 py-3 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 hover:border-slate-200 active:scale-[0.98]"
+                >
+                    <Sparkles className="h-4 w-4 text-emerald-500" />
+                    Ver Presentación del Producto
+                </Link>
+
+                <div className="text-center">
+                    <p className="text-xs text-slate-400">
+                        ¿No tienes una cuenta? {' '}
+                        <Link href="/register" className="font-bold text-slate-900 hover:text-emerald-600 underline-offset-4 hover:underline transition-colors">
+                            Registra tu clínica
+                        </Link>
+                    </p>
+                </div>
             </div>
         </motion.div>
     )
