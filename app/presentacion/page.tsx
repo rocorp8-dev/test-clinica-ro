@@ -171,6 +171,87 @@ export default function PresentationPage() {
                 </div>
             </section>
 
+            {/* Security Section */}
+            <section id="security" className="py-32 px-6 bg-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-emerald-500/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                <div className="max-w-7xl mx-auto relative z-10">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                        <div>
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-bold uppercase tracking-widest text-slate-600 mb-6">
+                                <Shield className="h-4 w-4 text-emerald-600" />
+                                Infraestructura Clínica
+                            </div>
+                            <h3 className="text-4xl md:text-5xl font-black text-slate-950 font-display mb-6 leading-tight">
+                                Seguridad de <span className="text-emerald-600">Grado Militar</span>
+                            </h3>
+                            <p className="text-slate-500 text-lg leading-relaxed mb-8">
+                                Entendemos que la información clínica es el activo más crítico. MDPulso está construido sobre una arquitectura ultra segura, garantizando privacidad total y cumplimiento normativo.
+                            </p>
+
+                            <div className="space-y-6">
+                                {[
+                                    { title: "Cifrado AES-256 en Reposo", desc: "Toda la base de datos de pacientes e historial está encriptada al más alto estándar de la industria." },
+                                    { title: "Autenticación Biométrica y 2FA", desc: "Acceso restringido únicamente a personal médico autorizado mediante múltiples capas de seguridad." },
+                                    { title: "Respaldos Geodistribuidos en la Nube", desc: "Backups continuos en múltiples servidores de grado militar para alta disponibilidad." }
+                                ].map((item, idx) => (
+                                    <div key={idx} className="flex items-start gap-4">
+                                        <div className="mt-1 bg-emerald-100 p-2.5 rounded-xl border border-emerald-200">
+                                            <Lock className="h-5 w-5 text-emerald-700" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-slate-900">{item.title}</h4>
+                                            <p className="text-sm text-slate-500 mt-1">{item.desc}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Security Visual */}
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/20 to-teal-600/20 rounded-[3rem] blur-3xl transform -rotate-6" />
+                            <div className="relative bg-slate-950 p-8 md:p-10 rounded-[2.5rem] border border-slate-800 shadow-2xl flex flex-col gap-6">
+                                <div className="flex items-center justify-between border-b border-slate-800 pb-6">
+                                    <div className="flex gap-3">
+                                        <div className="w-3.5 h-3.5 rounded-full bg-slate-800"></div>
+                                        <div className="w-3.5 h-3.5 rounded-full bg-slate-800"></div>
+                                        <div className="w-3.5 h-3.5 rounded-full bg-slate-800"></div>
+                                    </div>
+                                    <div className="text-[10px] font-black tracking-widest text-emerald-500 flex items-center gap-2 uppercase">
+                                        <Lock className="w-3.5 h-3.5" /> Encriptación Activa
+                                    </div>
+                                </div>
+                                <div className="space-y-4 font-mono text-sm">
+                                    <div className="flex justify-between items-center text-slate-400">
+                                        <span>Status Firewall:</span>
+                                        <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">ONLINE</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-400">
+                                        <span>Cifrado End-to-End:</span>
+                                        <span className="text-emerald-400">AES-256</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-400">
+                                        <span>Monitoreo 24/7:</span>
+                                        <span className="text-emerald-400 flex items-center gap-2">
+                                            <span className="relative flex h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                            </span>
+                                            ACTIVO
+                                        </span>
+                                    </div>
+                                    <div className="h-px w-full bg-slate-800 my-6" />
+                                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-5 flex items-start gap-4 text-emerald-400">
+                                        <Shield className="w-8 h-8 flex-shrink-0" />
+                                        <p className="text-xs leading-relaxed font-sans font-medium">Sus datos clínicos están protegidos bajo protocolos internacionales. Cumplimiento estricto de normativas de privacidad de pacientes.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* AI Experience Section */}
             <section className="py-32 px-6 overflow-hidden bg-slate-950 text-white relative">
                 <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-20 items-center relative z-10">
