@@ -80,7 +80,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
                 <div className="h-8 w-px bg-slate-200 hidden sm:block" />
 
-                <div className="flex items-center gap-2 md:gap-4">
+                <div className="flex items-center gap-2 md:gap-4 opacity-0 hover:opacity-100 transition-opacity duration-300">
                     <div className="text-right hidden sm:block">
                         <p className="text-sm font-bold text-slate-900 leading-none mb-1">{userName}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Director Médico</p>

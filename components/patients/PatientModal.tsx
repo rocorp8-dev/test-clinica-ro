@@ -19,12 +19,34 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
     const [telefono, setTelefono] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+    const validate = () => {
+        const errs: Record<string, string> = {}
+        if (!nombre.trim() || nombre.trim().length < 2)
+            errs.nombre = 'El nombre debe tener al menos 2 caracteres.'
+        else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/.test(nombre))
+            errs.nombre = 'El nombre solo puede contener letras y espacios.'
+        if (!dni.trim() || dni.trim().length < 6)
+            errs.dni = 'El DNI/ID debe tener al menos 6 caracteres.'
+        if (telefono.trim() && !/^\+?[\d\s\-\(\)]{7,15}$/.test(telefono))
+            errs.telefono = 'Formato de teléfono inválido. Ej: +521234567890'
+        return errs
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
         setError(null)
 
+        // ── Validación de campos ────────────────────────────
+        const errs = validate()
+        setFieldErrors(errs)
+        if (Object.keys(errs).length > 0) {
+            toast.error('Revisa los campos del formulario.')
+            return
+        }
+
+        setLoading(true)
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
@@ -35,14 +57,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
 
         const { error: insertError } = await supabase
             .from('patients')
-            .insert([
-                {
-                    nombre,
-                    dni,
-                    telefono,
-                    user_id: user.id
-                },
-            ])
+            .insert([{ nombre: nombre.trim(), dni: dni.trim(), telefono: telefono.trim(), user_id: user.id }])
 
         if (insertError) {
             setError(insertError.message)
@@ -51,6 +66,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
             setNombre('')
             setDni('')
             setTelefono('')
+            setFieldErrors({})
             setLoading(false)
             toast.success('Paciente registrado correctamente')
             onSuccess()
@@ -63,9 +79,9 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-slate-900/40 backdrop-blur-md p-x-0 md:p-4">
                     <motion.div
-                        initial={{ opacity: 0, y: 100 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 100 }}
+                        initial={{ opacity: 0, scale: 0.95, y: 100 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 100 }}
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                         className="w-full max-w-md rounded-t-[2.5rem] md:rounded-[2rem] border border-slate-200 bg-white p-6 md:p-8 shadow-2xl overflow-hidden"
                     >
@@ -87,11 +103,12 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
                                 <input
                                     type="text"
                                     value={nombre}
-                                    onChange={(e) => setNombre(e.target.value)}
-                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none font-medium"
+                                    onChange={(e) => { setNombre(e.target.value); setFieldErrors(p => ({ ...p, nombre: '' })) }}
+                                    className={`w-full rounded-2xl border bg-slate-50/50 px-4 py-3.5 text-sm focus:outline-none focus:ring-4 transition-all font-medium ${fieldErrors.nombre ? 'border-red-300 focus:border-red-400 focus:ring-red-500/5' : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/5'
+                                        }`}
                                     placeholder="Ej. Juan Pérez"
-                                    required
                                 />
+                                {fieldErrors.nombre && <p className="text-xs font-medium text-red-500 flex items-center gap-1 mt-1">⚠ {fieldErrors.nombre}</p>}
                             </div>
 
                             <div className="space-y-2">
@@ -101,11 +118,12 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
                                 <input
                                     type="text"
                                     value={dni}
-                                    onChange={(e) => setDni(e.target.value)}
-                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none font-medium"
+                                    onChange={(e) => { setDni(e.target.value); setFieldErrors(p => ({ ...p, dni: '' })) }}
+                                    className={`w-full rounded-2xl border bg-slate-50/50 px-4 py-3.5 text-sm focus:outline-none focus:ring-4 transition-all font-medium ${fieldErrors.dni ? 'border-red-300 focus:border-red-400 focus:ring-red-500/5' : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/5'
+                                        }`}
                                     placeholder="12345678X"
-                                    required
                                 />
+                                {fieldErrors.dni && <p className="text-xs font-medium text-red-500 flex items-center gap-1 mt-1">⚠ {fieldErrors.dni}</p>}
                             </div>
 
                             <div className="space-y-2">
@@ -115,10 +133,12 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
                                 <input
                                     type="tel"
                                     value={telefono}
-                                    onChange={(e) => setTelefono(e.target.value)}
-                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none font-medium"
+                                    onChange={(e) => { setTelefono(e.target.value); setFieldErrors(p => ({ ...p, telefono: '' })) }}
+                                    className={`w-full rounded-2xl border bg-slate-50/50 px-4 py-3.5 text-sm focus:outline-none focus:ring-4 transition-all font-medium ${fieldErrors.telefono ? 'border-red-300 focus:border-red-400 focus:ring-red-500/5' : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/5'
+                                        }`}
                                     placeholder="+52 951..."
                                 />
+                                {fieldErrors.telefono && <p className="text-xs font-medium text-red-500 flex items-center gap-1 mt-1">⚠ {fieldErrors.telefono}</p>}
                             </div>
 
                             {error && <p className="text-xs font-medium text-red-500 bg-red-50/50 p-3 rounded-xl border border-red-100">{error}</p>}

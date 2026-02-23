@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     let response = NextResponse.next({
         request: {
             headers: request.headers,
@@ -56,11 +56,10 @@ export async function middleware(request: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
 
+    // Protected routes logic
     const isAuthPage = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register')
-    const isApi = request.nextUrl.pathname.startsWith('/api')
-    const isStatic = request.nextUrl.pathname.match(/\.(.*)$/)
 
-    if (!user && !isAuthPage && !isApi && !isStatic) {
+    if (!user && !isAuthPage && !request.nextUrl.pathname.startsWith('/api') && !request.nextUrl.pathname.includes('.')) {
         return NextResponse.redirect(new URL('/login', request.url))
     }
 

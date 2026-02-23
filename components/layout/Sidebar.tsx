@@ -84,7 +84,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     key={item.href}
                                     href={item.href}
                                     onClick={onClose}
-                                    className={`group flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition-all ${isActive
+                                    className={`group flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition-all active:scale-95 ${isActive
                                         ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20'
                                         : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                                         }`}

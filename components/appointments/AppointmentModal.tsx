@@ -56,10 +56,38 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
         }
     }, [appointment, isOpen])
 
+    // Fecha mínima: hoy en formato YYYY-MM-DD
+    const todayStr = new Date().toISOString().split('T')[0]
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
         setError(null)
+
+        // ── Validación de campos ────────────────────────────────
+        if (!patientId) {
+            setError('Debes seleccionar un paciente.')
+            return
+        }
+        if (!fechaVal || !horaVal) {
+            setError('La fecha y la hora son obligatorias.')
+            return
+        }
+        if (!motivo.trim() || motivo.trim().length < 5) {
+            setError('El motivo de consulta debe tener al menos 5 caracteres.')
+            return
+        }
+
+        // ── Validación temporal: sin fechas en el pasado ────────
+        const fullFecha = `${fechaVal}T${horaVal}`
+        const selectedDate = new Date(fullFecha)
+        const now = new Date()
+        now.setSeconds(0, 0)
+        if (selectedDate < now) {
+            setError('No puedes agendar citas en el pasado. Selecciona una fecha y hora futura.')
+            return
+        }
+
+        setLoading(true)
 
         try {
             const { data: { user } } = await supabase.auth.getUser()
@@ -69,8 +97,26 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                 return
             }
 
-            // Unimos fecha y hora para la DB
-            const fullFecha = `${fechaVal}T${horaVal}`
+            // ── Validación de Conflictos de Horario ────────
+            const { data: existingAppts, error: checkError } = await supabase
+                .from('appointments')
+                .select('id, patients(nombre)')
+                .eq('doctor_id', user.id)
+                .eq('fecha', fullFecha)
+                .neq('estado', 'cancelada')
+
+            if (checkError) throw checkError
+
+            const conflictingAppts = appointment?.id
+                ? existingAppts?.filter(app => app.id !== appointment.id)
+                : existingAppts
+
+            if (conflictingAppts && conflictingAppts.length > 0) {
+                const ocupadoPor = (conflictingAppts[0]?.patients as any)?.nombre || "otro paciente"
+                setError(`Conflicto de Agenda: El horario de las ${horaVal} ya está ocupado por ${ocupadoPor}.`)
+                setLoading(false)
+                return
+            }
 
             if (appointment?.id) {
                 const { error: updateError } = await supabase
@@ -116,9 +162,10 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
             {isOpen && (
                 <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-slate-900/50 backdrop-blur-md p-0 md:p-4">
                     <motion.div
-                        initial={{ opacity: 0, y: 100 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 100 }}
+                        initial={{ opacity: 0, scale: 0.95, y: 100 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 100 }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                         className="w-full max-w-lg rounded-t-[2.5rem] md:rounded-[2rem] bg-white shadow-2xl overflow-hidden flex flex-col border border-slate-200"
                     >
                         {/* Header Sophistication */}
@@ -129,7 +176,7 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                                 </h3>
                                 <p className="text-[10px] uppercase tracking-[0.2em] font-black text-emerald-600 mt-2">MdPulso Clínico</p>
                             </div>
-                            <button onClick={onClose} className="p-2.5 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+                            <button onClick={onClose} className="p-2.5 rounded-full hover:bg-slate-100 text-slate-400 transition-colors active:scale-95">
                                 <X className="h-5 w-5" />
                             </button>
                         </div>
@@ -170,6 +217,7 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                                         <input
                                             type="date"
                                             value={fechaVal}
+                                            min={todayStr}
                                             onChange={(e) => setFechaVal(e.target.value)}
                                             className="w-full rounded-2xl border-none bg-white pl-14 pr-6 py-4 text-sm font-black text-slate-900 focus:ring-0 transition-all outline-none cursor-pointer"
                                             required

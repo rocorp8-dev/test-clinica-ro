@@ -1,0 +1,1 @@
+create table billing (id uuid primary key default uuid_generate_v4(), user_id uuid references auth.users not null, appointment_id uuid references appointments not null, patient_id uuid references patients not null, amount numeric not null, payment_method text, payment_status text, service_type text, date timestamp with time zone default timezone('utc'::text, now()) not null);

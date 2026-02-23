@@ -11,11 +11,13 @@ import {
     ChevronLeft,
     ChevronRight,
     Filter,
-    Loader2
+    Loader2,
+    CheckCheck
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import AppointmentModal from '@/components/appointments/AppointmentModal'
+import CheckoutModal from '@/components/billing/CheckoutModal'
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState<any[]>([])
@@ -24,6 +26,8 @@ export default function AppointmentsPage() {
     const [selectedDate, setSelectedDate] = useState(new Date())
     const [currentMonth, setCurrentMonth] = useState(new Date())
     const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
+    const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+    const [checkoutAppointment, setCheckoutAppointment] = useState<any>(null)
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -264,18 +268,24 @@ export default function AppointmentsPage() {
 
                             <div className={`flex-1 rounded-[1.4rem] md:rounded-[1.8rem] p-4 md:p-6 border transition-all ${app.estado === 'confirmada'
                                 ? 'bg-emerald-600 border-emerald-500 text-white shadow-xl shadow-emerald-200'
-                                : app.estado === 'cancelada'
-                                    ? 'bg-slate-50 border-slate-200 text-slate-300 opacity-60'
-                                    : 'bg-white border-slate-100 hover:border-emerald-200 hover:shadow-lg'
+                                : app.estado === 'completada'
+                                    ? 'bg-slate-50 border-emerald-100'
+                                    : app.estado === 'cancelada'
+                                        ? 'bg-slate-50 border-slate-200 text-slate-300 opacity-60'
+                                        : 'bg-white border-slate-100 hover:border-emerald-200 hover:shadow-lg'
                                 }`}>
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-start gap-3 md:gap-4 min-w-0">
-                                        <div className={`rounded-lg md:rounded-xl p-2 md:p-3 flex-shrink-0 ${app.estado === 'confirmada' ? 'bg-white/10' : 'bg-slate-50'
+                                        <div className={`rounded-lg md:rounded-xl p-2 md:p-3 flex-shrink-0 ${app.estado === 'confirmada' ? 'bg-white/10'
+                                                : app.estado === 'completada' ? 'bg-emerald-50'
+                                                    : 'bg-slate-50'
                                             }`}>
-                                            <User className={`h-4 w-4 md:h-5 md:w-5 ${app.estado === 'confirmada' ? 'text-white' : 'text-slate-400'}`} />
+                                            {app.estado === 'completada'
+                                                ? <CheckCheck className="h-4 w-4 md:h-5 md:w-5 text-emerald-500" />
+                                                : <User className={`h-4 w-4 md:h-5 md:w-5 ${app.estado === 'confirmada' ? 'text-white' : 'text-slate-400'}`} />}
                                         </div>
                                         <div className="min-w-0">
-                                            <p className={`font-bold text-base md:text-lg leading-tight truncate ${app.estado === 'cancelada' ? 'line-through' : ''}`}>{app.patients?.nombre}</p>
+                                            <p className={`font-bold text-base md:text-lg leading-tight truncate ${app.estado === 'cancelada' ? 'line-through' : ''} ${app.estado === 'completada' ? 'text-slate-500' : ''}`}>{app.patients?.nombre}</p>
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 opacity-80 text-[10px] md:text-xs">
                                                 <span className="flex items-center gap-1">
                                                     <Clock className="h-3 w-3" />
@@ -287,7 +297,10 @@ export default function AppointmentsPage() {
                                         </div>
                                     </div>
                                     <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
-                                        <span className={`rounded-full px-2 md:px-3 py-1 text-[8px] md:text-[10px] font-bold uppercase tracking-widest ${app.estado === 'confirmada' ? 'bg-white/20' : app.estado === 'cancelada' ? 'bg-slate-200 text-slate-400' : 'bg-amber-100 text-amber-700'
+                                        <span className={`rounded-full px-2 md:px-3 py-1 text-[8px] md:text-[10px] font-bold uppercase tracking-widest ${app.estado === 'confirmada' ? 'bg-white/20'
+                                                : app.estado === 'cancelada' ? 'bg-slate-200 text-slate-400'
+                                                    : app.estado === 'completada' ? 'bg-emerald-100 text-emerald-700'
+                                                        : 'bg-amber-100 text-amber-700'
                                             }`}>
                                             {app.estado}
                                         </span>
@@ -300,7 +313,19 @@ export default function AppointmentsPage() {
                                                     OK
                                                 </button>
                                             )}
-                                            {app.estado !== 'cancelada' && (
+                                            {app.estado === 'confirmada' && (
+                                                <button
+                                                    onClick={() => {
+                                                        setCheckoutAppointment(app)
+                                                        setIsCheckoutOpen(true)
+                                                    }}
+                                                    className="rounded-lg bg-white/20 px-2 py-1 text-[8px] md:text-[10px] font-black text-white uppercase tracking-tighter hover:bg-white/30 transition-all flex items-center gap-1"
+                                                >
+                                                    <CheckCheck className="h-3 w-3" />
+                                                    Cobrar
+                                                </button>
+                                            )}
+                                            {app.estado !== 'cancelada' && app.estado !== 'completada' && (
                                                 <button
                                                     onClick={() => toast('Opciones de Cita', {
                                                         description: `Gestión para ${app.patients?.nombre}`,
@@ -347,6 +372,15 @@ export default function AppointmentsPage() {
                 }}
                 onSuccess={loadAppointments}
                 appointment={selectedAppointment}
+            />
+            <CheckoutModal
+                isOpen={isCheckoutOpen}
+                onClose={() => {
+                    setIsCheckoutOpen(false)
+                    setCheckoutAppointment(null)
+                }}
+                onSuccess={loadAppointments}
+                appointment={checkoutAppointment}
             />
         </div>
     )

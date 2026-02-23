@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { X, User, Phone, CreditCard, Calendar, Activity, ClipboardList, Send, FileDown, MoreVertical, Loader2 } from 'lucide-react'
+import { X, User, Phone, CreditCard, Calendar, Activity, ClipboardList, Send, FileDown, MoreVertical, Loader2, Brain, AlertTriangle, TrendingUp, Lightbulb, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 
@@ -12,11 +12,29 @@ interface PatientDetailModalProps {
     patient: any
 }
 
+interface ClinicalSnapshot {
+    safetyAlerts: {
+        hasAlerts: boolean
+        notes: string
+    }
+    snapshot: {
+        reason: string
+        diagnosis: string
+        status: string
+    }
+    trends: string
+    suggestion: string
+}
+
 export default function PatientDetailModal({ isOpen, onClose, patient }: PatientDetailModalProps) {
     const [history, setHistory] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
     const [newNote, setNewNote] = useState('')
     const [isWritingNote, setIsWritingNote] = useState(false)
+
+    // NIA Snapshot States
+    const [snapshot, setSnapshot] = useState<ClinicalSnapshot | null>(null)
+    const [isGeneratingSnapshot, setIsGeneratingSnapshot] = useState(false)
 
     const fetchHistory = async () => {
         if (!patient?.id) return
@@ -50,9 +68,37 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
 
     useEffect(() => {
         if (isOpen && patient?.id) {
+            setSnapshot(null)
             fetchHistory()
         }
     }, [isOpen, patient])
+
+    const handleGenerateSnapshot = async () => {
+        if (!patient?.id) return
+        setIsGeneratingSnapshot(true)
+        setSnapshot(null)
+
+        try {
+            const res = await fetch('/api/nia/snapshot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ patient_id: patient.id })
+            })
+
+            if (!res.ok) throw new Error('Error al generar snapshot')
+
+            const data = await res.json()
+            setSnapshot(data)
+            toast.success('Snapshot clínico generado con éxito', {
+                icon: '🧠'
+            })
+        } catch (err) {
+            console.error(err)
+            toast.error('No se pudo generar el Snapshot Clínico')
+        } finally {
+            setIsGeneratingSnapshot(false)
+        }
+    }
 
     const handleSaveNote = async () => {
         if (!newNote.trim()) return
@@ -101,7 +147,7 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                         <div className="absolute right-4 top-4 md:right-6 md:top-6 z-10 flex gap-2">
                             <button
                                 onClick={onClose}
-                                className="rounded-full bg-slate-200/50 p-2 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-all active:scale-95"
+                                className="rounded-full bg-slate-200/50 p-2 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-all active:scale-90"
                             >
                                 <X className="h-5 w-5" />
                             </button>
@@ -174,6 +220,104 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
 
                             {/* Clinical History Column */}
                             <div className="md:col-span-8 space-y-6">
+                                {/* NIA MAGIC BUTTON & SNAPSHOT DASHBOARD */}
+                                <div className="space-y-4 mb-8">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-emerald-600 flex items-center gap-2">
+                                            <Brain className="h-4 w-4" />
+                                            Asistencia Inteligente
+                                        </h4>
+                                        {!snapshot && !isGeneratingSnapshot && (
+                                            <button
+                                                onClick={handleGenerateSnapshot}
+                                                className="group flex flex-col md:flex-row items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-[10px] font-black text-white uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 active:scale-95 transition-all"
+                                            >
+                                                <Sparkles className="h-3 w-3 text-white group-hover:rotate-12 transition-transform" />
+                                                Generar Snapshot Clínico
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {isGeneratingSnapshot && (
+                                        <div className="flex flex-col items-center justify-center py-10 rounded-3xl border border-emerald-100 bg-emerald-50/30">
+                                            <div className="relative h-12 w-12 mb-4">
+                                                <div className="absolute inset-0 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin"></div>
+                                                <Brain className="absolute inset-0 m-auto h-5 w-5 text-emerald-500 animate-pulse" />
+                                            </div>
+                                            <p className="text-xs font-black text-emerald-600 uppercase tracking-widest animate-pulse">Analizando Historial Médico...</p>
+                                        </div>
+                                    )}
+
+                                    <AnimatePresence>
+                                        {snapshot && !isGeneratingSnapshot && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                                                animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                                                className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                                            >
+                                                {/* 1. Alertas de Seguridad */}
+                                                <div className={`md:col-span-2 rounded-2xl p-5 border ${snapshot!.safetyAlerts.hasAlerts ? 'bg-rose-50 border-rose-200 shadow-sm shadow-rose-100' : 'bg-green-50/50 border-green-100'}`}>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        {snapshot!.safetyAlerts.hasAlerts ? <AlertTriangle className="h-4 w-4 text-rose-500" /> : <Activity className="h-4 w-4 text-green-500" />}
+                                                        <h5 className={`text-[10px] font-black uppercase tracking-[0.2em] ${snapshot!.safetyAlerts.hasAlerts ? 'text-rose-600' : 'text-green-600'}`}>
+                                                            Alertas de Seguridad
+                                                        </h5>
+                                                    </div>
+                                                    <p className={`text-sm font-bold ${snapshot!.safetyAlerts.hasAlerts ? 'text-rose-700' : 'text-green-700'}`}>
+                                                        {snapshot!.safetyAlerts.notes}
+                                                    </p>
+                                                </div>
+
+                                                {/* 2. Snapshot Clínico */}
+                                                <div className="rounded-2xl p-5 bg-white border border-slate-100 shadow-sm">
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <Activity className="h-4 w-4 text-sky-500" />
+                                                        <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Estado Actual</h5>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        <div>
+                                                            <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Motivo</p>
+                                                            <p className="text-xs font-bold text-slate-700">{snapshot!.snapshot.reason}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Diagnóstico</p>
+                                                            <p className="text-xs font-bold text-slate-700">{snapshot!.snapshot.diagnosis}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">Estado General</p>
+                                                            <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider">
+                                                                {snapshot!.snapshot.status}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* 3. Trends & Patterns */}
+                                                <div className="rounded-2xl p-5 bg-slate-50 border border-slate-100 shadow-sm">
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <TrendingUp className="h-4 w-4 text-indigo-500" />
+                                                        <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Tendencias Históricas</h5>
+                                                    </div>
+                                                    <p className="text-xs font-medium leading-relaxed text-slate-600">
+                                                        {snapshot!.trends}
+                                                    </p>
+                                                </div>
+
+                                                {/* 4. Sugerencia Operativa */}
+                                                <div className="md:col-span-2 rounded-2xl p-5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/20">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Lightbulb className="h-4 w-4 text-emerald-100" />
+                                                        <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">Próximo Paso Sugerido</h5>
+                                                    </div>
+                                                    <p className="text-sm font-bold leading-relaxed">
+                                                        {snapshot!.suggestion}
+                                                    </p>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
                                 <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-2">
                                     <h4 className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
                                         <div className="h-4 w-1 bg-slate-200 rounded-full" />
@@ -203,8 +347,8 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                                                     <div className="flex justify-between items-center mb-2">
                                                         <div className="flex items-center gap-2">
                                                             <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${item.type === 'note'
-                                                                    ? 'bg-amber-100 text-amber-700'
-                                                                    : 'bg-blue-100 text-blue-700'
+                                                                ? 'bg-amber-100 text-amber-700'
+                                                                : 'bg-blue-100 text-blue-700'
                                                                 }`}>
                                                                 {item.type === 'note' ? 'Evolución' : 'Consulta'}
                                                             </span>
@@ -280,7 +424,7 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                                 <div className="flex flex-col sm:flex-row gap-4">
                                     <button
                                         onClick={() => setIsWritingNote(true)}
-                                        className="flex-[2] rounded-[1.5rem] bg-emerald-600 py-5 text-sm font-black text-white shadow-2xl shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-widest"
+                                        className="flex-[2] rounded-[1.5rem] bg-emerald-600 py-5 text-sm font-black text-white shadow-2xl shadow-emerald-600/20 hover:bg-emerald-700 active:scale-90 transition-all flex items-center justify-center gap-3 uppercase tracking-widest"
                                     >
                                         <ClipboardList className="h-5 w-5" />
                                         Agregar Evolución

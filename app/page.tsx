@@ -21,7 +21,7 @@ import PatientModal from '@/components/patients/PatientModal'
 import PatientDetailModal from '@/components/patients/PatientDetailModal'
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({ patients: 0, appointments: 0, today: 0 })
+  const [stats, setStats] = useState({ patients: 0, appointments: 0, today: 0, balance: 0 })
   const [recentAppointments, setRecentAppointments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isAppModalOpen, setIsAppModalOpen] = useState(false)
@@ -41,23 +41,31 @@ export default function DashboardPage() {
         if (!user) return
 
         // Stats
-        const [patientsRes, appRes, todayRes] = await Promise.all([
+        const [patientsRes, appRes, todayRes, billingRes] = await Promise.all([
           supabase.from('patients').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
           supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('doctor_id', user.id),
           supabase.from('appointments')
             .select('*', { count: 'exact', head: true })
             .eq('doctor_id', user.id)
             .gte('fecha', new Date().toISOString().split('T')[0])
-            .lte('fecha', new Date().toISOString().split('T')[0] + 'T23:59:59')
+            .lte('fecha', new Date().toISOString().split('T')[0] + 'T23:59:59'),
+          supabase.from('billing')
+            .select('amount')
+            .eq('user_id', user.id)
+            .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
         ])
+
+        const balanceTotal = billingRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0;
 
         setStats({
           patients: patientsRes.count || 0,
           appointments: appRes.count || 0,
-          today: todayRes.count || 0
+          today: todayRes.count || 0,
+          balance: balanceTotal
         })
 
         // Recent Appointments
+        const now = new Date();
         const { data: appointments } = await supabase
           .from('appointments')
           .select(`
@@ -68,6 +76,9 @@ export default function DashboardPage() {
             patients (id, nombre, dni, telefono)
           `)
           .eq('doctor_id', user.id)
+          .gte('fecha', now.toISOString())
+          .neq('estado', 'completada')
+          .neq('estado', 'cancelada')
           .order('fecha', { ascending: true })
           .limit(5)
 
@@ -102,22 +113,30 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [patientsRes, appRes, todayRes] = await Promise.all([
+    const [patientsRes, appRes, todayRes, billingRes] = await Promise.all([
       supabase.from('patients').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
       supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('doctor_id', user.id),
       supabase.from('appointments')
         .select('*', { count: 'exact', head: true })
         .eq('doctor_id', user.id)
         .gte('fecha', new Date().toISOString().split('T')[0])
-        .lte('fecha', new Date().toISOString().split('T')[0] + 'T23:59:59')
+        .lte('fecha', new Date().toISOString().split('T')[0] + 'T23:59:59'),
+      supabase.from('billing')
+        .select('amount')
+        .eq('user_id', user.id)
+        .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
     ])
+
+    const balanceTotal = billingRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0;
 
     setStats({
       patients: patientsRes.count || 0,
       appointments: appRes.count || 0,
-      today: todayRes.count || 0
+      today: todayRes.count || 0,
+      balance: balanceTotal
     })
 
+    const now = new Date();
     const { data: appointments } = await supabase
       .from('appointments')
       .select(`
@@ -128,6 +147,9 @@ export default function DashboardPage() {
         patients (id, nombre, dni, telefono)
       `)
       .eq('doctor_id', user.id)
+      .gte('fecha', now.toISOString())
+      .neq('estado', 'completada')
+      .neq('estado', 'cancelada')
       .order('fecha', { ascending: true })
       .limit(5)
 
@@ -139,7 +161,7 @@ export default function DashboardPage() {
     { label: 'Pacientes Totales', value: stats.patients, icon: Users, color: 'emerald' },
     { label: 'Citas Programadas', value: stats.appointments, icon: Calendar, color: 'blue' },
     { label: 'Consultas para Hoy', value: stats.today, icon: Clock, color: 'amber' },
-    { label: 'Ratio de Atención', value: '94%', icon: Activity, color: 'rose' },
+    { label: 'Balance del Mes', value: `$${stats.balance.toFixed(2)}`, icon: TrendingUp, color: 'emerald' },
   ]
 
   if (loading) {
@@ -172,13 +194,13 @@ export default function DashboardPage() {
           <div className="flex flex-wrap gap-3 md:gap-4">
             <button
               onClick={() => setIsAppModalOpen(true)}
-              className="flex-1 sm:flex-none rounded-xl md:rounded-2xl bg-white px-5 md:px-6 py-3 md:py-4 text-xs md:text-sm font-bold text-slate-950 transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5"
+              className="flex-1 sm:flex-none rounded-xl md:rounded-2xl bg-white px-5 md:px-6 py-3 md:py-4 text-xs md:text-sm font-bold text-slate-950 transition-all hover:scale-105 active:scale-90 shadow-xl shadow-white/5"
             >
               Nueva Consulta
             </button>
             <Link
               href="/appointments"
-              className="flex-1 sm:flex-none rounded-xl md:rounded-2xl bg-slate-800 px-5 md:px-6 py-3 md:py-4 text-xs md:text-sm font-bold text-white transition-all hover:bg-slate-700 border border-slate-700 shadow-xl text-center"
+              className="flex-1 sm:flex-none rounded-xl md:rounded-2xl bg-slate-800 px-5 md:px-6 py-3 md:py-4 text-xs md:text-sm font-bold text-white transition-all hover:bg-slate-700 active:scale-95 border border-slate-700 shadow-xl text-center"
             >
               Ver Agenda
             </Link>
@@ -191,14 +213,14 @@ export default function DashboardPage() {
       </section>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
         {statCards.map((stat, i) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="group relative overflow-hidden rounded-2xl md:rounded-3xl bg-white p-5 md:p-6 shadow-sm border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl"
+            className="group relative overflow-hidden rounded-2xl md:rounded-3xl bg-white p-5 md:p-6 shadow-sm border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95 cursor-pointer"
           >
             <div className="flex items-center justify-between mb-3 md:mb-4">
               <div className={`rounded-xl md:rounded-2xl p-2.5 md:p-3 ${stat.color === 'emerald' ? 'bg-emerald-50 text-emerald-600' :
@@ -227,14 +249,14 @@ export default function DashboardPage() {
           </div>
           <div className="space-y-4">
             {recentAppointments.length > 0 ? recentAppointments.map((app: any) => (
-              <div key={app.id} className="group relative flex flex-col sm:flex-row sm:items-center justify-between p-4 md:p-5 rounded-3xl bg-slate-50/50 hover:bg-white transition-all border border-transparent hover:border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 gap-4">
+              <div key={app.id} className="group relative flex flex-col sm:flex-row sm:items-center justify-between p-4 md:p-5 rounded-3xl bg-slate-50/50 hover:bg-white transition-all border border-transparent hover:border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 gap-4 active:scale-[0.98] cursor-pointer">
                 <div className="flex items-center gap-4">
                   <div className="flex h-14 w-14 flex-shrink-0 flex-col items-center justify-center rounded-2xl bg-white shadow-sm font-bold text-slate-900 border border-slate-100">
                     <span className="text-[10px] text-slate-400 uppercase tracking-tighter leading-none mb-1">
                       {new Date(app.fecha).toLocaleDateString('es-ES', { weekday: 'short' })}
                     </span>
                     <span className="text-sm leading-none">
-                      {new Date(app.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(app.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <div
@@ -258,7 +280,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-3">
-                  <span className={`px-3 py-1.5 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-widest ${app.estado === 'confirmada' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                  <span className={`px-3 py-1.5 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-widest ${app.estado === 'confirmada' ? 'bg-emerald-100 text-emerald-700'
+                    : app.estado === 'completada' ? 'bg-emerald-500 text-white'
+                      : 'bg-amber-100 text-amber-700'
                     }`}>
                     {app.estado}
                   </span>

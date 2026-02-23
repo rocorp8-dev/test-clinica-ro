@@ -1,232 +1,318 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import {
     DollarSign,
+    TrendingUp,
     CreditCard,
-    ArrowUpRight,
-    ArrowDownLeft,
-    Search,
-    Filter,
-    MoreHorizontal,
-    Download,
+    Banknote,
+    Smartphone,
+    FileText,
+    CheckCircle2,
     Calendar,
-    Loader2
+    User,
+    Receipt,
+    ArrowUpRight,
+    Filter
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 
+const METHOD_ICONS: Record<string, any> = {
+    efectivo: Banknote,
+    tarjeta: CreditCard,
+    transferencia: Smartphone,
+    otro: FileText,
+}
+const METHOD_COLORS: Record<string, string> = {
+    efectivo: 'text-emerald-600 bg-emerald-50',
+    tarjeta: 'text-blue-600 bg-blue-50',
+    transferencia: 'text-violet-600 bg-violet-50',
+    otro: 'text-amber-600 bg-amber-50',
+}
+
+type TimePeriod = 'today' | 'week' | 'month' | 'all'
+
 export default function BillingPage() {
-    const [payments, setPayments] = useState<any[]>([])
+    const [records, setRecords] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
-    const [stats, setStats] = useState({ total: 0, count: 0 })
+    const [period, setPeriod] = useState<TimePeriod>('month')
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
-    useEffect(() => {
-        async function loadPayments() {
-            try {
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user) return
+    const loadBilling = useCallback(async () => {
+        setLoading(true)
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
 
-                const { data, error } = await supabase
-                    .from('payments')
-                    .select(`
-                        *,
-                        patients (nombre)
-                    `)
-                    .eq('doctor_id', user.id)
-                    .order('created_at', { ascending: false })
+            let query = supabase
+                .from('billing')
+                .select(`
+                    id,
+                    amount,
+                    service_type,
+                    payment_method,
+                    payment_status,
+                    notes,
+                    created_at,
+                    patients (nombre)
+                `)
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
 
-                if (error) throw error
-                setPayments(data || [])
-
-                const total = (data || []).reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0)
-                setStats({ total, count: data?.length || 0 })
-            } catch (err) {
-                toast.error('Error al cargar cobros')
-            } finally {
-                setLoading(false)
+            // Date filter
+            const now = new Date()
+            if (period === 'today') {
+                const start = new Date(now); start.setHours(0, 0, 0, 0)
+                query = query.gte('created_at', start.toISOString())
+            } else if (period === 'week') {
+                const start = new Date(now); start.setDate(now.getDate() - 7)
+                query = query.gte('created_at', start.toISOString())
+            } else if (period === 'month') {
+                const start = new Date(now); start.setDate(1); start.setHours(0, 0, 0, 0)
+                query = query.gte('created_at', start.toISOString())
             }
+
+            const { data, error } = await query
+            if (error) throw error
+            setRecords(data || [])
+        } catch (err) {
+            toast.error('Error al cargar cobros')
+        } finally {
+            setLoading(false)
         }
+    }, [period, supabase])
 
-        loadPayments()
-    }, [])
+    useEffect(() => { loadBilling() }, [loadBilling])
 
-    if (loading) return (
-        <div className="flex h-[80vh] items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-                <Loader2 className="h-10 w-10 text-emerald-600 animate-spin" />
-                <p className="text-slate-500 font-medium italic">Sincronizando transacciones...</p>
-            </div>
-        </div>
-    )
+    // Stats
+    const totalRevenue = records.reduce((sum, r) => sum + Number(r.amount), 0)
+    const byMethod = records.reduce((acc: Record<string, number>, r) => {
+        acc[r.payment_method] = (acc[r.payment_method] || 0) + Number(r.amount)
+        return acc
+    }, {})
+    const byService = records.reduce((acc: Record<string, number>, r) => {
+        acc[r.service_type] = (acc[r.service_type] || 0) + 1
+        return acc
+    }, {})
+    const topService = Object.entries(byService).sort((a, b) => b[1] - a[1])[0]
+
+    const periodLabels: Record<TimePeriod, string> = {
+        today: 'Hoy',
+        week: 'Últimos 7 días',
+        month: 'Este mes',
+        all: 'Todo el tiempo',
+    }
 
     return (
         <div className="space-y-8 pb-20">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 font-display">Centro de Cobros</h1>
-                    <p className="text-slate-500 text-sm">Control de ingresos y facturación de la clínica.</p>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 font-display">Cobros</h1>
+                    <p className="text-slate-500 text-xs md:text-sm italic mt-1">Balance financiero de tu práctica médica</p>
                 </div>
-                <button
-                    onClick={() => toast.success('Reporte generado', { description: 'El reporte mensual ha sido enviado a tu correo.' })}
-                    className="flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-4 text-sm font-bold text-white shadow-xl transition-all hover:bg-slate-800 active:scale-95"
-                >
-                    <Download className="h-5 w-5" />
-                    Exportar Reporte
-                </button>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                <div className="rounded-3xl bg-emerald-600 p-6 md:p-8 text-white shadow-xl shadow-emerald-100 flex flex-col justify-between">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="rounded-xl bg-white/10 p-2">
-                            <DollarSign className="h-5 w-5 md:h-6 md:w-6" />
-                        </div>
-                        <ArrowUpRight className="h-5 w-5 text-emerald-300" />
-                    </div>
-                    <div>
-                        <p className="text-emerald-100 text-xs md:text-sm font-medium">Ingresos Totales</p>
-                        <h3 className="text-3xl md:text-4xl font-bold mt-1 font-display">${stats.total.toLocaleString()}</h3>
-                    </div>
-                </div>
-
-                <div className="rounded-3xl bg-white p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col justify-between">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="rounded-xl bg-blue-50 p-2">
-                            <CreditCard className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
-                        </div>
-                        <span className="text-[10px] md:text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Realizados</span>
-                    </div>
-                    <div>
-                        <p className="text-slate-500 text-xs md:text-sm font-medium">Cobros Realizados</p>
-                        <h3 className="text-3xl md:text-4xl font-bold mt-1 text-slate-900 font-display">{stats.count}</h3>
-                    </div>
-                </div>
-
-                <div className="rounded-3xl bg-white p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col justify-between sm:col-span-2 lg:col-span-1">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="rounded-xl bg-amber-50 p-2">
-                            <Calendar className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />
-                        </div>
-                    </div>
-                    <div>
-                        <p className="text-slate-500 text-xs md:text-sm font-medium">Promedio Diario</p>
-                        <h3 className="text-3xl md:text-4xl font-bold mt-1 text-slate-900 font-display">${(stats.total / (stats.count || 1)).toFixed(2)}</h3>
-                    </div>
-                </div>
-            </div>
-
-            {/* Transactions Table */}
-            <section className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-4 md:p-8 shadow-sm border border-slate-100">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 p-2 md:p-0">
-                    <h2 className="text-lg md:text-xl font-bold text-slate-900 font-display">Historial de Transacciones</h2>
-                    <div className="flex gap-2 w-full md:w-auto">
-                        <div className="relative flex-1 md:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Buscar transaccion..."
-                                className="pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500 transition-all w-full"
-                            />
-                        </div>
+                {/* Period Filter */}
+                <div className="flex gap-1.5 p-1.5 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                    {(Object.keys(periodLabels) as TimePeriod[]).map(p => (
                         <button
-                            onClick={() => toast.info('Filtrado de Finanzas', { description: 'Los filtros por fecha y categoría estarán disponibles próximamente.' })}
-                            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-500 active:scale-95 transition-transform"
+                            key={p}
+                            onClick={() => setPeriod(p)}
+                            className={`px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider transition-all active:scale-95 ${period === p
+                                ? 'bg-slate-900 text-white shadow-md'
+                                : 'text-slate-400 hover:text-slate-700'
+                                }`}
                         >
-                            <Filter className="h-5 w-5" />
+                            {periodLabels[p]}
                         </button>
-                    </div>
-                </div>
-
-                {/* Desktop View */}
-                <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="border-b border-slate-50">
-                                <th className="pb-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Paciente</th>
-                                <th className="pb-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Fecha</th>
-                                <th className="pb-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Metodo</th>
-                                <th className="pb-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Monto</th>
-                                <th className="pb-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Accion</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {payments.map((pay) => (
-                                <tr key={pay.id} className="group hover:bg-slate-50/50 transition-colors">
-                                    <td className="py-5">
-                                        <p className="font-bold text-slate-900">{pay.patients?.nombre}</p>
-                                        <p className="text-xs text-slate-400 uppercase tracking-tighter font-medium">ID: {pay.id.split('-')[0]}</p>
-                                    </td>
-                                    <td className="py-5">
-                                        <p className="text-sm text-slate-600 font-medium">{new Date(pay.created_at).toLocaleDateString()}</p>
-                                        <p className="text-[10px] text-slate-400 font-bold">{new Date(pay.created_at).toLocaleTimeString()}</p>
-                                    </td>
-                                    <td className="py-5">
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 uppercase tracking-wider">
-                                            {pay.method === 'Efectivo' ? <DollarSign className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}
-                                            {pay.method}
-                                        </span>
-                                    </td>
-                                    <td className="py-5">
-                                        <p className="font-bold text-slate-900">${parseFloat(pay.amount).toFixed(2)}</p>
-                                        <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Exitosa</span>
-                                    </td>
-                                    <td className="py-5 text-right">
-                                        <button
-                                            onClick={() => toast.info('Detalles de Transacción', { description: 'Puedes visualizar el recibo completo en la sección de reportes.' })}
-                                            className="p-2 text-slate-400 hover:bg-white rounded-lg transition-all group-hover:text-slate-600 active:scale-95"
-                                        >
-                                            <MoreHorizontal className="h-4 w-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Mobile View */}
-                <div className="md:hidden divide-y divide-slate-50">
-                    {payments.map((pay) => (
-                        <div key={pay.id} className="py-5 space-y-3 active:bg-slate-50 transition-colors rounded-xl px-2">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="font-bold text-slate-900">{pay.patients?.nombre}</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(pay.created_at).toLocaleDateString()} • {new Date(pay.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-bold text-slate-900">${parseFloat(pay.amount).toFixed(2)}</p>
-                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Exitosa</span>
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-bold bg-slate-100 text-slate-600 uppercase tracking-widest">
-                                    {pay.method === 'Efectivo' ? <DollarSign className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}
-                                    {pay.method}
-                                </span>
-                                <button
-                                    onClick={() => toast.info('Detalles de Transacción', { description: 'Puedes visualizar el recibo completo en la sección de reportes.' })}
-                                    className="p-2 text-slate-400 active:text-slate-600 active:scale-95 transition-all border border-slate-100 rounded-lg"
-                                >
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
                     ))}
                 </div>
+            </div>
 
-                {payments.length === 0 && (
-                    <div className="py-20 text-center flex flex-col items-center">
-                        <DollarSign className="h-12 w-12 text-slate-200 mb-4" />
-                        <p className="text-slate-500 font-medium">No se registran cobros todavía.</p>
+            {/* Stats Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                {/* Total Revenue - Hero Card */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="md:col-span-1 relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-600 to-teal-600 p-6 md:p-8 text-white shadow-2xl shadow-emerald-200"
+                >
+                    <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5" />
+                    <div className="absolute -left-4 -bottom-8 h-32 w-32 rounded-full bg-white/5" />
+                    <div className="relative">
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center">
+                                <TrendingUp className="h-4 w-4" />
+                            </div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200">
+                                Ingresos · {periodLabels[period]}
+                            </p>
+                        </div>
+                        <p className="text-4xl md:text-5xl font-black tracking-tight font-display">
+                            ${totalRevenue.toFixed(2)}
+                        </p>
+                        <p className="text-emerald-200 text-xs mt-2">
+                            {records.length} consulta{records.length !== 1 ? 's' : ''} registrada{records.length !== 1 ? 's' : ''}
+                        </p>
+                    </div>
+                </motion.div>
+
+                {/* By Method */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 }}
+                    className="rounded-[2rem] bg-white p-6 md:p-8 shadow-sm border border-slate-100"
+                >
+                    <div className="flex items-center gap-2 mb-5">
+                        <div className="h-8 w-8 rounded-xl bg-blue-50 flex items-center justify-center">
+                            <CreditCard className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Forma de Pago</p>
+                    </div>
+                    <div className="space-y-3">
+                        {Object.keys(METHOD_ICONS).map(method => {
+                            const amount = byMethod[method] || 0
+                            if (amount === 0) return null
+                            const Icon = METHOD_ICONS[method]
+                            const pct = totalRevenue > 0 ? (amount / totalRevenue) * 100 : 0
+                            return (
+                                <div key={method} className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className={`p-1.5 rounded-lg ${METHOD_COLORS[method]}`}>
+                                                <Icon className="h-3 w-3" />
+                                            </div>
+                                            <span className="text-xs font-bold text-slate-700 capitalize">{method}</span>
+                                        </div>
+                                        <span className="text-xs font-black text-slate-900">${amount.toFixed(2)}</span>
+                                    </div>
+                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-700"
+                                            style={{ width: `${pct}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )
+                        })}
+                        {Object.keys(byMethod).length === 0 && (
+                            <p className="text-xs text-slate-400 text-center py-4">Sin cobros en este período</p>
+                        )}
+                    </div>
+                </motion.div>
+
+                {/* Top Service */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="rounded-[2rem] bg-white p-6 md:p-8 shadow-sm border border-slate-100"
+                >
+                    <div className="flex items-center gap-2 mb-5">
+                        <div className="h-8 w-8 rounded-xl bg-violet-50 flex items-center justify-center">
+                            <Receipt className="h-4 w-4 text-violet-600" />
+                        </div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Servicio más frecuente</p>
+                    </div>
+                    {topService ? (
+                        <div className="space-y-4">
+                            <div className="rounded-2xl bg-violet-50 border border-violet-100 p-4">
+                                <p className="text-sm font-black text-violet-900">{topService[0]}</p>
+                                <p className="text-xs text-violet-600 mt-1">{topService[1]} consulta{topService[1] !== 1 ? 's' : ''}</p>
+                            </div>
+                            <div className="space-y-2">
+                                {Object.entries(byService)
+                                    .sort((a, b) => b[1] - a[1])
+                                    .slice(0, 3)
+                                    .map(([service, count]) => (
+                                        <div key={service} className="flex items-center justify-between">
+                                            <span className="text-xs text-slate-600 truncate max-w-[160px]">{service}</span>
+                                            <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-full">{count as number}</span>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-slate-400 text-center py-4">Sin datos</p>
+                    )}
+                </motion.div>
+            </div>
+
+            {/* Transaction List */}
+            <section className="rounded-[2rem] bg-white p-6 md:p-8 shadow-sm border border-slate-100">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-bold text-slate-900 font-display flex items-center gap-2">
+                        <ArrowUpRight className="h-5 w-5 text-emerald-500" />
+                        Historial de Cobros
+                    </h2>
+                    <span className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full font-medium">
+                        {records.length} registros
+                    </span>
+                </div>
+
+                {loading ? (
+                    <div className="flex justify-center py-10">
+                        <div className="h-8 w-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                ) : records.length === 0 ? (
+                    <div className="text-center py-16 space-y-3">
+                        <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto">
+                            <DollarSign className="h-7 w-7 text-slate-300" />
+                        </div>
+                        <p className="text-slate-500 font-medium text-sm">Sin cobros en este período</p>
+                        <p className="text-slate-400 text-xs">Completa una cita confirmada para registrar un cobro</p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {records.map((r, i) => {
+                            const Icon = METHOD_ICONS[r.payment_method] || FileText
+                            return (
+                                <motion.div
+                                    key={r.id}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: i * 0.04 }}
+                                    className="flex items-center gap-4 p-4 md:p-5 rounded-2xl bg-slate-50/50 border border-transparent hover:bg-white hover:border-slate-100 hover:shadow-md transition-all"
+                                >
+                                    <div className={`h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${METHOD_COLORS[r.payment_method]}`}>
+                                        <Icon className="h-5 w-5" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="flex items-center gap-1 text-xs text-slate-500">
+                                                <User className="h-3 w-3" />
+                                                <span className="truncate max-w-[120px] md:max-w-none">{(r.patients as any)?.nombre || 'Paciente'}</span>
+                                            </span>
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-900 truncate">{r.service_type}</p>
+                                        {r.notes && (
+                                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{r.notes}</p>
+                                        )}
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                        <p className="text-lg font-black text-emerald-700">+${Number(r.amount).toFixed(2)}</p>
+                                        <div className="flex items-center gap-1 justify-end mt-0.5">
+                                            <Calendar className="h-3 w-3 text-slate-400" />
+                                            <span className="text-[10px] text-slate-400">
+                                                {new Date(r.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex-shrink-0 hidden sm:flex">
+                                        <div className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full">
+                                            <CheckCircle2 className="h-3 w-3" />
+                                            <span className="text-[9px] font-black uppercase tracking-wider">Pagado</span>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )
+                        })}
                     </div>
                 )}
             </section>
