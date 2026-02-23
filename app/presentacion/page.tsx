@@ -22,7 +22,7 @@ const slides = [
         title: "MDPulso",
         subtitle: "El Sistema Operativo de la Medicina Moderna",
         description: "Transformando la gestión clínica con Inteligencia Artificial de alto rendimiento.",
-        image: "https://images.unsplash.com/photo-1576091160550-217359f42f8c?auto=format&fit=crop&q=80&w=2070",
+        bgClass: "bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-emerald-900/40 to-slate-950",
         color: "from-emerald-600 to-teal-700",
         icon: Stethoscope
     },
@@ -30,7 +30,7 @@ const slides = [
         title: "Inteligencia que Asiste",
         subtitle: "NIA: Tu Copiloto Clínico",
         description: "Análisis en tiempo real de expedientes, resúmenes automáticos y diagnósticos asistidos por IA.",
-        image: "https://images.unsplash.com/photo-1587854692152-cbe660dbbb88?auto=format&fit=crop&q=80&w=2069",
+        bgClass: "bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-slate-900 via-blue-900/40 to-slate-950",
         color: "from-blue-600 to-indigo-700",
         icon: Bot
     },
@@ -38,8 +38,8 @@ const slides = [
         title: "Control Total",
         subtitle: "Gestión 360° de tu Práctica",
         description: "Citas, expedientes digitales y facturación en un solo ecosistema premium e intuitivo.",
-        image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2026",
-        color: "from-slate-800 to-slate-950",
+        bgClass: "bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black",
+        color: "from-slate-400 to-slate-200",
         icon: Zap
     }
 ]
@@ -63,9 +63,9 @@ export default function PresentationPage() {
                     <a href="#features" className="hover:text-emerald-600 transition-colors">Características</a>
                     <a href="#security" className="hover:text-emerald-600 transition-colors">Seguridad</a>
                     <a href="#contact" className="hover:text-emerald-600 transition-colors">Contacto</a>
-                    <button className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95">
+                    <a href="mailto:despacho9@gmail.com" className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95">
                         Agendar Demo
-                    </button>
+                    </a>
                 </div>
             </nav>
 
@@ -78,14 +78,11 @@ export default function PresentationPage() {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.8 }}
-                        className="absolute inset-0 z-0"
+                        className={`absolute inset-0 z-0 ${slides[currentSlide].bgClass}`}
                     >
-                        <div className="absolute inset-0 bg-slate-950/40 z-10" />
-                        <img
-                            src={slides[currentSlide].image}
-                            alt="Background"
-                            className="w-full h-full object-cover"
-                        />
+                        <div className="absolute inset-0 bg-slate-950/20 z-10" />
+                        {/* Abstract pattern overlay */}
+                        <div className="absolute inset-0 opacity-20 z-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
                     </motion.div>
                 </AnimatePresence>
 
@@ -111,10 +108,10 @@ export default function PresentationPage() {
                                 {slides[currentSlide].description}
                             </p>
                             <div className="flex flex-wrap gap-4">
-                                <button className="bg-white text-slate-950 px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+                                <a href="/login" className="bg-white text-slate-950 px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
                                     Explorar MDPulso
                                     <ArrowRight className="h-5 w-5" />
-                                </button>
+                                </a>
                                 <button
                                     onClick={nextSlide}
                                     className="bg-white/10 backdrop-blur-md border border-white/30 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/20 transition-all flex items-center gap-2"
@@ -235,12 +232,12 @@ export default function PresentationPage() {
                         Únete a la élite médica que ya está optimizando su tiempo y mejorando la atención al paciente con MDPulso.
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-                        <button className="w-full sm:w-auto bg-slate-950 text-white px-10 py-5 rounded-2xl font-bold text-xl hover:scale-105 transition-all shadow-2xl active:scale-95">
+                        <a href="/login" className="w-full sm:w-auto bg-slate-950 text-white px-10 py-5 rounded-2xl font-bold text-xl hover:scale-105 transition-all shadow-2xl active:scale-95 text-center">
                             Comenzar ahora
-                        </button>
-                        <button className="w-full sm:w-auto bg-white text-slate-950 border-2 border-slate-200 px-10 py-5 rounded-2xl font-bold text-xl hover:bg-slate-50 transition-all active:scale-95">
+                        </a>
+                        <a href="mailto:despacho9@gmail.com" className="w-full sm:w-auto bg-white text-slate-950 border-2 border-slate-200 px-10 py-5 rounded-2xl font-bold text-xl hover:bg-slate-50 transition-all active:scale-95 text-center">
                             Contactar Ventas
-                        </button>
+                        </a>
                     </div>
                     <div className="pt-20 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8">
                         <div className="flex items-center gap-2">
@@ -249,7 +246,13 @@ export default function PresentationPage() {
                             </div>
                             <span className="font-bold text-slate-950 font-display">MDPulso v2.5</span>
                         </div>
-                        <p className="text-slate-400 text-sm italic">© 2026 MDPulso Cloud Systems. Todos los derechos reservados.</p>
+                        <div className="text-slate-500 text-sm text-center md:text-left">
+                            <p className="italic mb-1">© 2026 MDPulso Cloud Systems. Todos los derechos reservados.</p>
+                            <p>
+                                Desarrollado por <a href="https://despacho9.vercel.app/" target="_blank" rel="noopener noreferrer" className="font-bold text-emerald-600 hover:text-emerald-700 transition-colors">Despacho9</a> |
+                                <a href="mailto:despacho9@gmail.com" className="ml-1 hover:text-emerald-600 transition-colors">despacho9@gmail.com</a>
+                            </p>
+                        </div>
                         <div className="flex gap-4 text-slate-400">
                             <a href="#" className="hover:text-emerald-600 transition-colors">Privacidad</a>
                             <a href="#" className="hover:text-emerald-600 transition-colors">Términos</a>
