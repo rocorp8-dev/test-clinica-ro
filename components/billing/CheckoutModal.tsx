@@ -46,8 +46,8 @@ export default function CheckoutModal({ isOpen, onClose, onSuccess, appointment 
     const [loading, setLoading] = useState(false)
 
     const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key'
     )
 
     const handleSubmit = async (e: React.FormEvent) => {
