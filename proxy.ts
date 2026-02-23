@@ -59,7 +59,9 @@ export async function proxy(request: NextRequest) {
     // Protected routes logic
     const isAuthPage = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register')
 
-    if (!user && !isAuthPage && !request.nextUrl.pathname.startsWith('/api') && !request.nextUrl.pathname.includes('.')) {
+    const isPublicPage = isAuthPage || request.nextUrl.pathname.startsWith('/presentacion')
+
+    if (!user && !isPublicPage && !request.nextUrl.pathname.startsWith('/api') && !request.nextUrl.pathname.includes('.')) {
         return NextResponse.redirect(new URL('/login', request.url))
     }
 
