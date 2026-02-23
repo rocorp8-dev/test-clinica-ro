@@ -1,0 +1,262 @@
+'use client'
+
+import React, { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+    Sparkles,
+    Shield,
+    Users,
+    TrendingUp,
+    Stethoscope,
+    ArrowRight,
+    ChevronRight,
+    Bot,
+    Zap,
+    Heart,
+    Lock,
+    Globe
+} from 'lucide-react'
+
+const slides = [
+    {
+        title: "MDPulso",
+        subtitle: "El Sistema Operativo de la Medicina Moderna",
+        description: "Transformando la gestión clínica con Inteligencia Artificial de alto rendimiento.",
+        image: "https://images.unsplash.com/photo-1576091160550-217359f42f8c?auto=format&fit=crop&q=80&w=2070",
+        color: "from-emerald-600 to-teal-700",
+        icon: Stethoscope
+    },
+    {
+        title: "Inteligencia que Asiste",
+        subtitle: "NIA: Tu Copiloto Clínico",
+        description: "Análisis en tiempo real de expedientes, resúmenes automáticos y diagnósticos asistidos por IA.",
+        image: "https://images.unsplash.com/photo-1587854692152-cbe660dbbb88?auto=format&fit=crop&q=80&w=2069",
+        color: "from-blue-600 to-indigo-700",
+        icon: Bot
+    },
+    {
+        title: "Control Total",
+        subtitle: "Gestión 360° de tu Práctica",
+        description: "Citas, expedientes digitales y facturación en un solo ecosistema premium e intuitivo.",
+        image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2026",
+        color: "from-slate-800 to-slate-950",
+        icon: Zap
+    }
+]
+
+export default function PresentationPage() {
+    const [currentSlide, setCurrentSlide] = useState(0)
+
+    const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length)
+
+    return (
+        <div className="min-h-screen bg-white overflow-hidden selection:bg-emerald-100 selection:text-emerald-900">
+            {/* Header / Nav */}
+            <nav className="fixed top-0 left-0 right-0 z-50 p-6 flex justify-between items-center bg-white/80 backdrop-blur-md border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                    <div className="h-10 w-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
+                        <Stethoscope className="h-6 w-6" />
+                    </div>
+                    <span className="text-xl font-bold tracking-tight text-slate-950 font-display italic">MDPulso</span>
+                </div>
+                <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-500">
+                    <a href="#features" className="hover:text-emerald-600 transition-colors">Características</a>
+                    <a href="#security" className="hover:text-emerald-600 transition-colors">Seguridad</a>
+                    <a href="#contact" className="hover:text-emerald-600 transition-colors">Contacto</a>
+                    <button className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95">
+                        Agendar Demo
+                    </button>
+                </div>
+            </nav>
+
+            {/* Hero Slider Section */}
+            <section className="relative h-screen flex items-center justify-center pt-20">
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={currentSlide}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.8 }}
+                        className="absolute inset-0 z-0"
+                    >
+                        <div className="absolute inset-0 bg-slate-950/40 z-10" />
+                        <img
+                            src={slides[currentSlide].image}
+                            alt="Background"
+                            className="w-full h-full object-cover"
+                        />
+                    </motion.div>
+                </AnimatePresence>
+
+                <div className="relative z-20 max-w-7xl mx-auto px-6 w-full text-white">
+                    <div className="max-w-3xl space-y-8">
+                        <motion.div
+                            key={`content-${currentSlide}`}
+                            initial={{ y: 30, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.3, duration: 0.6 }}
+                        >
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-xs font-bold uppercase tracking-widest mb-6">
+                                <Sparkles className="h-3 w-3 text-emerald-400" />
+                                Nueva Era Médica
+                            </div>
+                            <h1 className="text-6xl md:text-8xl font-black tracking-tight leading-none mb-4 font-display">
+                                {slides[currentSlide].title}
+                            </h1>
+                            <h2 className={`text-2xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${slides[currentSlide].color} brightness-150 mb-6 italic`}>
+                                {slides[currentSlide].subtitle}
+                            </h2>
+                            <p className="text-lg md:text-xl text-white/80 leading-relaxed mb-10 max-w-2xl">
+                                {slides[currentSlide].description}
+                            </p>
+                            <div className="flex flex-wrap gap-4">
+                                <button className="bg-white text-slate-950 px-8 py-4 rounded-2xl font-bold text-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+                                    Explorar MDPulso
+                                    <ArrowRight className="h-5 w-5" />
+                                </button>
+                                <button
+                                    onClick={nextSlide}
+                                    className="bg-white/10 backdrop-blur-md border border-white/30 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-white/20 transition-all flex items-center gap-2"
+                                >
+                                    Siguiente
+                                    <ChevronRight className="h-5 w-5" />
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                </div>
+
+                {/* Progress Indicators */}
+                <div className="absolute bottom-10 left-6 z-30 flex gap-2">
+                    {slides.map((_, i) => (
+                        <div
+                            key={i}
+                            className={`h-1.5 rounded-full transition-all duration-500 ${currentSlide === i ? 'w-12 bg-emerald-500' : 'w-4 bg-white/30'}`}
+                        />
+                    ))}
+                </div>
+            </section>
+
+            {/* Features Grid */}
+            <section id="features" className="py-32 px-6 bg-slate-50">
+                <div className="max-w-7xl mx-auto">
+                    <div className="text-center space-y-4 mb-20">
+                        <h2 className="text-sm font-black text-emerald-600 uppercase tracking-[0.3em]">Características de Élite</h2>
+                        <h3 className="text-4xl md:text-6xl font-black text-slate-900 font-display">Diseñado para la Excelencia</h3>
+                        <p className="text-slate-500 max-w-2xl mx-auto text-lg">
+                            MDPulso no es solo un software, es un sistema nervioso digital que potencia todas las áreas de su práctica médica.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {[
+                            { icon: Users, title: "Historial Inteligente", desc: "Expedientes electrónicos que aprenden de sus patrones de consulta." },
+                            { icon: Shield, title: "Cifrado Militar", desc: "Protección AES-256 para datos sensibles de pacientes y doctores." },
+                            { icon: TrendingUp, title: "Analítica de Ingresos", desc: "Dashboards financieros en tiempo real con proyecciones inteligentes." },
+                            { icon: Heart, title: "Enfoque en el Paciente", desc: "Recordatorios automáticos y portal de seguimiento post-consulta." },
+                            { icon: Lock, title: "Privacidad Total", desc: "Cumplimiento garantizado con normativas internacionales de salud." },
+                            { icon: Globe, title: "Acceso Remoto", desc: "Controle su clínica desde cualquier lugar con sincronización en la nube." }
+                        ].map((feature, i) => (
+                            <motion.div
+                                key={i}
+                                whileHover={{ y: -10 }}
+                                className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-emerald-500/5 transition-all group"
+                            >
+                                <div className="h-14 w-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-6 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                                    <feature.icon className="h-7 w-7" />
+                                </div>
+                                <h4 className="text-xl font-bold text-slate-900 mb-3">{feature.title}</h4>
+                                <p className="text-slate-500 leading-relaxed">{feature.desc}</p>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* AI Experience Section */}
+            <section className="py-32 px-6 overflow-hidden bg-slate-950 text-white relative">
+                <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-20 items-center relative z-10">
+                    <div className="space-y-8">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold uppercase tracking-widest text-emerald-400">
+                            <Bot className="h-4 w-4" />
+                            MDPulso AI Core
+                        </div>
+                        <h3 className="text-5xl md:text-7xl font-black tracking-tight leading-none font-display">
+                            NIA: Su nueva <span className="text-emerald-500 italic">Asistente Neural</span>
+                        </h3>
+                        <p className="text-slate-400 text-lg md:text-xl leading-relaxed">
+                            NIA procesa lenguaje natural para asistirle en tareas complejas. Imagine buscar en miles de registros en segundos o dictar notas clínicas que se estructuran solas.
+                        </p>
+                        <div className="space-y-4">
+                            {[
+                                "Búsqueda semántica de pacientes",
+                                "Resúmenes de historial clínico en segundos",
+                                "Detección proactiva de interacciones médicas",
+                                "Asistente de diagnóstico sugerido"
+                            ].map((item, i) => (
+                                <div key={i} className="flex items-center gap-3">
+                                    <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                                    <span className="text-slate-300 font-medium">{item}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <button className="bg-emerald-600 px-8 py-4 rounded-2xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all active:scale-95 shadow-xl shadow-emerald-500/20">
+                            Probar NIA
+                            <ArrowRight className="h-5 w-5" />
+                        </button>
+                    </div>
+                    <div className="relative">
+                        <div className="absolute -inset-20 bg-emerald-500/20 blur-[100px] rounded-full" />
+                        <div className="relative z-10 bg-slate-900 border border-slate-800 rounded-[3rem] p-4 shadow-2xl">
+                            <div className="bg-slate-950 rounded-[2.5rem] border border-slate-800 overflow-hidden aspect-video flex items-center justify-center p-12 text-center">
+                                <div className="space-y-4">
+                                    <div className="h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto animate-pulse">
+                                        <Sparkles className="h-10 w-10 text-emerald-500" />
+                                    </div>
+                                    <p className="text-xs font-black uppercase tracking-[0.3em] text-emerald-500">Interface Neural Activa</p>
+                                    <p className="text-slate-500 text-sm max-w-xs italic italic">
+                                        "NIA, muestra un resumen del paciente Juan Pérez incluyendo sus alergias detectadas en 2023."
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Footer / CTA */}
+            <footer id="contact" className="py-40 px-6 text-center bg-white border-t border-slate-100">
+                <div className="max-w-4xl mx-auto space-y-12">
+                    <h2 className="text-4xl md:text-7xl font-black text-slate-950 font-display">
+                        ¿Listo para dar el <span className="text-emerald-600 underline decoration-emerald-100 underline-offset-8">gran salto</span>?
+                    </h2>
+                    <p className="text-slate-500 text-xl md:text-2xl max-w-2xl mx-auto">
+                        Únete a la élite médica que ya está optimizando su tiempo y mejorando la atención al paciente con MDPulso.
+                    </p>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                        <button className="w-full sm:w-auto bg-slate-950 text-white px-10 py-5 rounded-2xl font-bold text-xl hover:scale-105 transition-all shadow-2xl active:scale-95">
+                            Comenzar ahora
+                        </button>
+                        <button className="w-full sm:w-auto bg-white text-slate-950 border-2 border-slate-200 px-10 py-5 rounded-2xl font-bold text-xl hover:bg-slate-50 transition-all active:scale-95">
+                            Contactar Ventas
+                        </button>
+                    </div>
+                    <div className="pt-20 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8">
+                        <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 bg-emerald-600 rounded-lg flex items-center justify-center text-white">
+                                <Stethoscope className="h-4 w-4" />
+                            </div>
+                            <span className="font-bold text-slate-950 font-display">MDPulso v2.5</span>
+                        </div>
+                        <p className="text-slate-400 text-sm italic">© 2026 MDPulso Cloud Systems. Todos los derechos reservados.</p>
+                        <div className="flex gap-4 text-slate-400">
+                            <a href="#" className="hover:text-emerald-600 transition-colors">Privacidad</a>
+                            <a href="#" className="hover:text-emerald-600 transition-colors">Términos</a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    )
+}
