@@ -63,7 +63,7 @@ export default function PresentationPage() {
                     <a href="#features" className="hover:text-emerald-600 transition-colors">Características</a>
                     <a href="#security" className="hover:text-emerald-600 transition-colors">Seguridad</a>
                     <a href="#contact" className="hover:text-emerald-600 transition-colors">Contacto</a>
-                    <a href="mailto:despacho9@gmail.com" className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95">
+                    <a href="https://wa.me/529511454158" target="_blank" rel="noopener noreferrer" className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95">
                         Agendar Demo
                     </a>
                 </div>
@@ -198,10 +198,10 @@ export default function PresentationPage() {
                                 </div>
                             ))}
                         </div>
-                        <button className="bg-emerald-600 px-8 py-4 rounded-2xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all active:scale-95 shadow-xl shadow-emerald-500/20">
+                        <a href="/login" className="inline-flex bg-emerald-600 px-8 py-4 rounded-2xl font-bold items-center gap-2 hover:bg-emerald-700 transition-all active:scale-95 shadow-xl shadow-emerald-500/20 w-max">
                             Probar NIA
                             <ArrowRight className="h-5 w-5" />
-                        </button>
+                        </a>
                     </div>
                     <div className="relative">
                         <div className="absolute -inset-20 bg-emerald-500/20 blur-[100px] rounded-full" />
@@ -235,7 +235,7 @@ export default function PresentationPage() {
                         <a href="/login" className="w-full sm:w-auto bg-slate-950 text-white px-10 py-5 rounded-2xl font-bold text-xl hover:scale-105 transition-all shadow-2xl active:scale-95 text-center">
                             Comenzar ahora
                         </a>
-                        <a href="mailto:despacho9@gmail.com" className="w-full sm:w-auto bg-white text-slate-950 border-2 border-slate-200 px-10 py-5 rounded-2xl font-bold text-xl hover:bg-slate-50 transition-all active:scale-95 text-center">
+                        <a href="https://wa.me/529511454158" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto bg-white text-slate-950 border-2 border-slate-200 px-10 py-5 rounded-2xl font-bold text-xl hover:bg-slate-50 transition-all active:scale-95 text-center flex items-center justify-center">
                             Contactar Ventas
                         </a>
                     </div>
