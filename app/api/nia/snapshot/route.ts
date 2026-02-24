@@ -107,7 +107,12 @@ ${JSON.stringify(medicalData)}
         // If the API returned an error, surface it immediately
         if (!response.ok) {
             console.error('NIA Snapshot Error:', data);
-            const message = data?.error ?? data?.message ?? 'AI Snapshot Error';
+            let message = 'AI Snapshot Error';
+            if (data?.error) {
+                message = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
+            } else if (data?.message) {
+                message = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);
+            }
             return NextResponse.json({ error: message }, { status: response.status });
         }
         // The OpenRouter response may already be a parsed object when using json_object format

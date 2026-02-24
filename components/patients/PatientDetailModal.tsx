@@ -90,7 +90,17 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                 let errorMsg = 'Error al generar snapshot';
                 try {
                     const errData = await res.json();
-                    errorMsg = errData?.error || errData?.message || errorMsg;
+                    if (errData?.error) {
+                        errorMsg = typeof errData.error === 'string'
+                            ? errData.error
+                            : (errData.error.message || JSON.stringify(errData.error));
+                    } else if (errData?.message) {
+                        errorMsg = typeof errData.message === 'string'
+                            ? errData.message
+                            : JSON.stringify(errData.message);
+                    } else if (typeof errData === 'object' && errData !== null) {
+                        errorMsg = JSON.stringify(errData);
+                    }
                 } catch (_) {
                     // ignore parsing errors
                 }
