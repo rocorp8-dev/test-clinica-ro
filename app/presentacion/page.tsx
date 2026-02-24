@@ -252,6 +252,13 @@ export default function PresentationPage() {
                 </div>
             </section>
 
+            {/* CTA after Security */}
+            <div className="text-center mt-12">
+                <a href="/security-details" className="inline-block bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
+                    Conoce más sobre nuestra Seguridad
+                </a>
+            </div>
+
             {/* AI Experience Section */}
             <section className="py-32 px-6 overflow-hidden bg-slate-950 text-white relative">
                 <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-20 items-center relative z-10">

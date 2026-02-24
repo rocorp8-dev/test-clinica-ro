@@ -4,13 +4,19 @@ import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
     try {
+        // Validate OpenRouter API key
+        if (!process.env.OPENROUTER_API_KEY) {
+            console.error('OpenRouter API key not configured');
+            return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });
+        }
         const { patient_id } = await req.json();
+        console.log('Generating snapshot for patient_id:', patient_id);
 
         // Get authenticating user
         const cookieStore = await cookies();
         const supabaseClient = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key',
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key',
             {
                 cookies: {
                     getAll: () => cookieStore.getAll(),
@@ -98,13 +104,22 @@ ${JSON.stringify(medicalData)}
         });
 
         const data = await response.json();
+        // If the API returned an error, surface it immediately
         if (!response.ok) {
             console.error('NIA Snapshot Error:', data);
-            throw new Error(data.error || 'AI Snapshot Error');
+            const message = data?.error ?? data?.message ?? 'AI Snapshot Error';
+            return NextResponse.json({ error: message }, { status: response.status });
         }
-
-        const jsonContent = JSON.parse(data.choices[0].message.content);
-        return NextResponse.json(jsonContent);
+        // The OpenRouter response may already be a parsed object when using json_object format
+        let snapshotResult;
+        try {
+            const content = data?.choices?.[0]?.message?.content;
+            snapshotResult = typeof content === 'string' ? JSON.parse(content) : content;
+        } catch (e) {
+            console.error('Failed to parse NIA snapshot JSON:', e);
+            return NextResponse.json({ error: 'Invalid snapshot format' }, { status: 500 });
+        }
+        return NextResponse.json(snapshotResult);
 
     } catch (error) {
         console.error('NIA_SNAPSHOT_API_ERROR:', error);

@@ -85,16 +85,27 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                 body: JSON.stringify({ patient_id: patient.id })
             })
 
-            if (!res.ok) throw new Error('Error al generar snapshot')
+            if (!res.ok) {
+                // Try to extract error message from response
+                let errorMsg = 'Error al generar snapshot';
+                try {
+                    const errData = await res.json();
+                    errorMsg = errData?.error || errData?.message || errorMsg;
+                } catch (_) {
+                    // ignore parsing errors
+                }
+                throw new Error(errorMsg);
+            }
 
-            const data = await res.json()
-            setSnapshot(data)
+            const data = await res.json();
+            setSnapshot(data);
             toast.success('Snapshot clínico generado con éxito', {
                 icon: '🧠'
             })
         } catch (err) {
             console.error(err)
-            toast.error('No se pudo generar el Snapshot Clínico')
+            const message = err instanceof Error ? err.message : String(err)
+            toast.error(`No se pudo generar el Snapshot Clínico: ${message}`)
         } finally {
             setIsGeneratingSnapshot(false)
         }
