@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Stethoscope, Mail, Lock, Loader2, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
+import Image from 'next/image'
+import { Mail, Lock, Loader2, ArrowRight, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 
@@ -53,21 +54,12 @@ export default function LoginForm() {
         >
             <div className="text-center space-y-2">
                 <div className="flex justify-center mb-4">
-                    <div className="p-3 bg-emerald-600 rounded-2xl shadow-xl shadow-emerald-200">
-                        <Stethoscope className="h-8 w-8 text-white" />
+                    <div className="h-16 w-16 rounded-2xl overflow-hidden shadow-xl shadow-emerald-200">
+                        <Image src="/logo-mdpulso.png" alt="MdPulso" width={64} height={64} className="h-full w-full object-cover" />
                     </div>
                 </div>
                 <h1 className="text-3xl font-bold tracking-tight text-slate-900 font-display">MdPulso</h1>
                 <p className="text-slate-500 text-sm">Plataforma Profesional de Gestión Médica</p>
-            </div>
-
-            <div className="bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl flex gap-3 items-center">
-                <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0" />
-                <div className="text-xs text-emerald-800">
-                    <p className="font-bold">Acceso de Demostración</p>
-                    <p>Email: <span className="font-mono">doctor@mdpulso.com</span></p>
-                    <p>Pass: <span className="font-mono">Demo1234!</span></p>
-                </div>
             </div>
 
             <form onSubmit={handleLogin} className="flex flex-col gap-5">
