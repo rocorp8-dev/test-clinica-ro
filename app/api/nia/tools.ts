@@ -140,15 +140,20 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     console.log(`NIA AutoHealing: resolved to UUID -> ${args.patient_id}`);
                 }
 
-                // Forzar Zona Horaria de Ciudad de México si el modelo no la incluye (-06:00)
-                let dateStr = args.fecha;
-                // Si la fecha termina en un número (no tiene Z ni offset final) le agregamos -06:00
-                if (/\d$/.test(dateStr)) {
+                // Limpiar la fecha y asegurar que tenga timezone, evitando duplicar offsets
+                let dateStr = args.fecha.trim();
+                const hasOffset = dateStr.includes('+') || (dateStr.includes('-') && dateStr.lastIndexOf('-') > 10) || dateStr.endsWith('Z');
+                if (!hasOffset && /\d$/.test(dateStr)) {
                     dateStr += '-06:00';
                 }
                 
                 // BLOQUEO DE SEGURIDAD: Protocolo de Tiempo y Anticipación (Mínimo 1 hora)
                 const requestDate = new Date(dateStr);
+                
+                if (isNaN(requestDate.getTime())) {
+                    return { error: `ERROR_FORMATO_FECHA: La fecha enviada (${args.fecha}) no es válida para la base de datos temporal. Asegúrate de pasar la fecha estrictamente en formato ISO 8601 (ej: 2026-04-11T15:00:00). Propón el horario al usuario de nuevo.` };
+                }
+
                 const nowMs = Date.now();
                 const oneHourMs = 60 * 60 * 1000;
 
@@ -183,10 +188,9 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
 
                 if (existingAppts && existingAppts.length > 0) {
                     for (const appt of existingAppts) {
-                        let apptDateStr = appt.fecha;
-                        if (/\d$/.test(apptDateStr)) apptDateStr += '-06:00';
-                        
-                        const apptMs = new Date(apptDateStr).getTime();
+                        const apptMs = new Date(appt.fecha).getTime();
+                        if (isNaN(apptMs)) continue; // ignorar si la db retornó algo que JS no puede parsear
+
                         // Si la diferencia entre la cita existente y la nueva es menor a 45 mins = conflicto
                         if (Math.abs(requestedMs - apptMs) < fortyFiveMinsMs) {
                             console.warn(`NIA intentó doble agendar. Conflicto con: ${appt.fecha}`);
@@ -202,7 +206,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 console.log('NIA: Inserting into "appointments" table...', {
                     patient_id: args.patient_id,
                     doctor_id: userId,
-                    fecha: args.fecha,
+                    fecha: dateStr,
                     motivo: args.motivo
                 });
 
@@ -211,7 +215,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     .insert([{
                         patient_id: args.patient_id,
                         doctor_id: userId,
-                        fecha: args.fecha,
+                        fecha: dateStr,
                         motivo: args.motivo,
                         estado: 'pendiente'
                     }])
