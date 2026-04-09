@@ -4,10 +4,10 @@ import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
     try {
-        // Validate OpenRouter API key
-        if (!process.env.OPENROUTER_API_KEY) {
-            console.error('OpenRouter API key not configured');
-            return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });
+        // Validate Cerebras API key
+        if (!process.env.CEREBRAS_API_KEY) {
+            console.error('Cerebras API key not configured');
+            return NextResponse.json({ error: 'Cerebras API key not configured' }, { status: 500 });
         }
         const { patient_id } = await req.json();
         console.log('Generating snapshot for patient_id:', patient_id);
@@ -87,16 +87,14 @@ DATA BRUTA:
 ${JSON.stringify(medicalData)}
 `;
 
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        const response = await fetch("https://api.cerebras.ai/v1/chat/completions", {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                "Authorization": `Bearer ${process.env.CEREBRAS_API_KEY}`,
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://mdpulso-ro.vercel.app",
-                "X-Title": "MdPulso Clinica",
             },
             body: JSON.stringify({
-                model: "openai/gpt-4o-mini",
+                model: "llama-3.3-70b",
                 messages: [{ role: "user", content: NIA_PROMPT }],
                 response_format: { type: "json_object" },
                 temperature: 0.1,
@@ -106,7 +104,7 @@ ${JSON.stringify(medicalData)}
         const data = await response.json();
         // If the API returned an error, surface it immediately
         if (!response.ok) {
-            console.error('NIA Snapshot Error:', data);
+            console.error('NIA Snapshot Cerebras Error:', data);
             let message = 'AI Snapshot Error';
             if (data?.error) {
                 message = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
