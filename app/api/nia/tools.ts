@@ -62,7 +62,8 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 const { data, error } = await supabase
                     .from('patients')
                     .select('id, nombre, dni, telefono')
-                    .ilike('nombre', `%${args.query}%`)
+                    .eq('user_id', userId)
+                    .or(`nombre.ilike.%${args.query}%,dni.ilike.%${args.query}%`)
                     .limit(5);
 
                 if (error) {
