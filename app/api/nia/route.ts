@@ -22,7 +22,7 @@ function extractToolCallsFromContent(content: string | null): { name: string; ar
     const trimmed = content.trim();
 
     // Patrón 1: XML wrapper — <tool_call>{...}</tool_call>
-    const xmlMatch = trimmed.match(/<tool_call>([\s\S]*?)<\/tool_call>/s);
+    const xmlMatch = trimmed.match(/<tool_call>([\s\S]*?)<\/tool_call>/);
     if (xmlMatch) {
         try {
             const parsed = JSON.parse(xmlMatch[1].trim());
