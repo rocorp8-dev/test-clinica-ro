@@ -25,11 +25,11 @@ export const NIA_TOOLS = [
         type: "function",
         function: {
             name: "get_patient_complete_history",
-            description: "Obtiene el historial clínico completo, incluyendo citas pasadas y notas médicas de un paciente específico.",
+            description: "Obtiene el historial clínico completo de un paciente. Requiere el campo 'patient_id' que es el campo 'id' retornado por search_patients.",
             parameters: {
                 type: "object",
                 properties: {
-                    patient_id: { type: "string", description: "El UUID del paciente." }
+                    patient_id: { type: "string", description: "El 'id' exacto retornado por search_patients. SIEMPRE usa el campo 'id' del resultado de búsqueda como patient_id." }
                 },
                 required: ["patient_id"]
             }
@@ -80,11 +80,17 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'get_patient_complete_history': {
+                // Acepta patient_id, uuid, o id — el modelo puede usar cualquiera de los tres
+                const patientId = args.patient_id || args.uuid || args.id;
+                if (!patientId) {
+                    console.error('NIA: get_patient_complete_history — sin patient_id:', args);
+                    return { error: 'Falta el ID del paciente. Asegúrate de pasar el campo patient_id.' };
+                }
                 // Basic Info
                 const { data: patient, error: pError } = await supabase
                     .from('patients')
                     .select('*')
-                    .eq('id', args.patient_id)
+                    .eq('id', patientId)
                     .single();
 
                 if (pError) {
@@ -96,14 +102,14 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 const { data: appointments } = await supabase
                     .from('appointments')
                     .select('*')
-                    .eq('patient_id', args.patient_id)
+                    .eq('patient_id', patientId)
                     .order('fecha', { ascending: false });
 
                 // Medical Notes
                 const { data: notes } = await supabase
                     .from('medical_notes')
                     .select('*')
-                    .eq('patient_id', args.patient_id)
+                    .eq('patient_id', patientId)
                     .order('created_at', { ascending: false });
 
                 console.log(`NIA: history for patient ${args.patient_id} found.`);

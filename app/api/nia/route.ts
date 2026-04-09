@@ -65,6 +65,17 @@ function extractToolCallsFromContent(content: string | null): { name: string; ar
 function cleanNiaResponse(content: string | null): string | null {
     if (!content) return content;
 
+    const trimmed = content.trim();
+
+    // Si el contenido completo es JSON puro (array o tool call), es un leak — no enviarlo
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+        try {
+            JSON.parse(trimmed);
+            // Es JSON válido → nunca debe llegar al médico
+            return null;
+        } catch { /* no es JSON puro, continuar */ }
+    }
+
     // Encontrar el primer marcador del reporte estructurado
     const markers = ['🚨', '📌', '📈', '💡'];
     let firstIdx = content.length;
@@ -82,9 +93,10 @@ function cleanNiaResponse(content: string | null): string | null {
         .filter(line => {
             const t = line.trim();
             if (!t) return true;
-            // Línea que es solo JSON de tool call
-            if (t.startsWith('{') && (t.includes('"name"') && t.includes('"arguments"'))) return false;
-            // Línea que es solo Python dict (single-quote keys)
+            // Línea que es JSON de tool call o array JSON
+            if ((t.startsWith('{') || t.startsWith('[')) &&
+                (t.includes('"name"') || t.includes('"arguments"') || t.includes('"id"'))) return false;
+            // Línea que es Python dict (single-quote keys)
             if (t.startsWith('{') && t.includes("'uuid'")) return false;
             return true;
         })
@@ -118,7 +130,7 @@ REGLA DE CORTESÍA: Si el médico solo te saluda o hace una pregunta no clínica
 FLUJO OBLIGATORIO:
 1. Si el médico pide algo sobre un paciente:
    - USA 'search_patients' con SOLO EL NOMBRE O DNI del paciente. NUNCA incluyas palabras como "expediente", "historial", "cita" en el query — solo el nombre propio (ej: query="Laura Jimenez", NO query="Laura Jimenez expediente").
-   - USA 'get_patient_complete_history' con el UUID retornado.
+   - USA 'get_patient_complete_history' con patient_id=<el campo 'id' exacto del resultado de search_patients>. SIEMPRE usa 'patient_id', NUNCA 'uuid' ni 'id'.
    - Genera el REPORTE FINAL en el formato estricto.
 2. Si el médico pide agendar:
    - USA 'create_appointment'.
