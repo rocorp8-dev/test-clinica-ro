@@ -7,10 +7,10 @@ import { cookies } from 'next/headers';
 export const maxDuration = 30;
 
 // Modelos disponibles en Cerebras (verificado 2026-04):
-// - llama3.1-8b: rápido (~1-2s), tool calls con "required" ✅ ← ACTIVO
-// - qwen-3-235b-a22b-instruct-2507: tool calls perfectos pero lento (8-12s → timeout en Vercel)
-// - gpt-oss-120b: NO disponible en este plan/key
-const NIA_TOOL_MODEL = 'llama3.1-8b';
+// - llama3.1-8b: rápido (~1-2s), tool calls débiles, requiere fallback.
+// - qwen-3-235b: tool calls perfectos pero lento (8-12s → propicio a timeout en serverless)
+// - gpt-oss-120b: tool calls perfectos y rápido. (ACTIVO: Plan objetivo)
+const NIA_TOOL_MODEL = 'gpt-oss-120b';
 
 /**
  * Fallback parser: detecta si el modelo retornó el tool call como texto
@@ -62,7 +62,7 @@ function extractToolCallsFromContent(content: string | null): { name: string; ar
  * Elimina cualquier texto antes del primer marcador de sección (🚨, 📌, 📈, 💡).
  * También elimina líneas que sean solo JSON de tool call o dicts de Python.
  */
-function cleanNiaResponse(content: string | null): string | null {
+function cleanNiaResponse(content: string | null, calledTools: string[] = []): string | null {
     if (!content) return content;
 
     const trimmed = content.trim();
@@ -76,15 +76,24 @@ function cleanNiaResponse(content: string | null): string | null {
         } catch { /* no es JSON puro, continuar */ }
     }
 
-    // Si la respuesta es una "narración del workflow" (el modelo describe qué tools usar
-    // en vez de ejecutarlas), es una alucinación peligrosa — no mostrarla
-    const isNarratedWorkflow = (
-        // Menciona backtick-commands como instrucciones a ejecutar
-        /`search_patients`|`get_patient_complete_history`|`create_appointment`/.test(trimmed) ||
-        // Describe "comandos" a ejecutar (típico de alucinación de cadena de herramientas)
-        /con el comando|con la herramienta|usando el comando|ejecuta el comando/i.test(trimmed)
-    );
-    if (isNarratedWorkflow) return null;
+    // Detectar alucinaciones donde el modelo confirma haber agendado una cita SIN haber llamado a la herramienta
+    const fakeConfirmationPatterns = [
+        /agendad[oa]\s+con\s+éxito/i,
+        /cread[oa]\s+(con\s+éxito|exitosamente)/i,
+        /he\s+agendado/i,
+        /he\s+creado\s+(la|tu|su)?\s*cita/i,
+        /he\s+programado/i,
+        /la\s+cita\s+ha\s+sido/i,
+        /ya\s+está\s+agendada/i,
+        /ya\s+quedó\s+agendada/i,
+        /cita\s+confirmada\s+para/i,
+        /listo.*agendad[oa]/i
+    ];
+
+    const isFakeConfirmation = fakeConfirmationPatterns.some(regex => regex.test(trimmed)) 
+                              && !calledTools.includes('create_appointment');
+    
+    if (isFakeConfirmation) return null;
 
     // Encontrar el primer marcador del reporte estructurado
     const markers = ['🚨', '📌', '📈', '💡'];
@@ -146,9 +155,10 @@ FLUJO OBLIGATORIO:
    - PRIMERO verifica que el médico dio: nombre del paciente, fecha, hora y motivo.
    - Si FALTA alguno de esos datos, NO llames ninguna tool — pregunta directamente: "¿Para qué fecha y hora? ¿Cuál es el motivo?"
    - Si tienes todos los datos: USA 'search_patients' para obtener el UUID, luego USA 'create_appointment'.
-   - ⏳ PROTOCOLO DE TIEMPO: Verifica que la hora y día solicitados NO estén en el pasado respecto a tu FECHA ACTUAL. Si la hora / día ya pasó, rechaza la solicitud pidiendo una hora nueva.
-   - Asegúrate de que la 'fecha' esté en formato ISO 8601 completo (ej: 2026-02-22T13:00:00).
-   - Responde confirmando que la cita fue agendada con éxito. NUNCA inventes ni confirmes una cita que no hayas creado realmente con la tool.
+   - ⏳ PROTOCOLO DE TIEMPO Y COLISIONES: Las citas duran 45 minutos. El doctor exige un mínimo de 1 hora de anticipación respecto a tu FECHA ACTUAL ("hoy" a este minuto). No puedes agendar en el pasado ni inmediatamente.
+   - Si recibes el error ERROR_CONFLICTO_HORARIO de la herramienta (choque con reserva previa), PROPÓN directamente un horario alternativo con al menos 45 minutos libres.
+   - Asegúrate de que la 'fecha' esté en formato ISO 8601 completo incluyendo la zona horaria CDMX explícita (ej: 2026-02-22T13:00:00-06:00).
+   - Responde confirmando que la cita fue agendada con éxito CUMPLIENDO el formato estricto de reportes. NUNCA inventes ni confirmes una cita que no hayas creado realmente con la tool.
 
 MANTÉN EL TONO PROFESIONAL Y ELITISTA.
 FORMATO ESTRICTO DE RESPUESTA FINAL (PARA REPORTES):
@@ -297,14 +307,16 @@ export async function POST(req: Request) {
 
         console.log('NIA: Final Response Ready.');
 
-        // Limpiar contenido final — eliminar leakage de tool calls, datos crudos o narraciones
+        // Limpiar contenido final — eliminar leakage de tool calls, datos crudos o falsas confirmaciones
+        const calledTools = chatHistory.filter(m => m.role === 'tool').map(m => m.name);
+
         if (data?.choices?.[0]?.message?.content) {
-            const cleanedContent = cleanNiaResponse(data.choices[0].message.content);
+            const cleanedContent = cleanNiaResponse(data.choices[0].message.content, calledTools);
             if (!cleanedContent) {
                 // El cleaner detectó respuesta inválida — dar fallback humano
                 return NextResponse.json({
                     choices: [{ message: { role: 'assistant', content:
-                        'Necesito más información. ¿Qué paciente buscas y qué necesitas hacer?'
+                        'Necesito más información. ¿Cuál es el nombre del paciente, para cuándo sería la cita y cuál es el motivo?'
                     }}]
                 });
             }
@@ -341,7 +353,8 @@ export async function POST(req: Request) {
                     const safetyData = await safetyResponse.json();
                     const safeContent = safetyData?.choices?.[0]?.message?.content;
                     if (safeContent && !isRawToolCallJson(safeContent)) {
-                        safetyData.choices[0].message.content = cleanNiaResponse(safeContent);
+                        const allCalledTools = [...calledTools, ...extracted.map(t => t.name)];
+                        safetyData.choices[0].message.content = cleanNiaResponse(safeContent, allCalledTools);
                         return NextResponse.json(safetyData);
                     }
                 }

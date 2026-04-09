@@ -25,7 +25,7 @@ export default function RegisterForm() {
         setLoading(true)
 
         try {
-            const { error } = await supabase.auth.signUp({
+            const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
@@ -37,9 +37,17 @@ export default function RegisterForm() {
 
             if (error) throw error
 
-            toast.success('¡Registro exitoso!', {
-                description: 'Cuenta creada. Ya puedes iniciar sesión.'
-            })
+            if (data?.user && data?.session === null) {
+                // Email Confirmations están activadas
+                toast.success('¡Casi listo!', {
+                    description: 'Revisa tu correo (incluyendo Spam) y haz clic en el enlace para activar tu cuenta.'
+                })
+            } else {
+                // Email Confirmations desactivadas o todo listo
+                toast.success('¡Registro exitoso!', {
+                    description: 'Cuenta creada. Ya puedes iniciar sesión.'
+                })
+            }
             router.push('/login')
         } catch (err: any) {
             toast.error('Error al registrar', {

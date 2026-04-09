@@ -121,22 +121,33 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'create_appointment': {
-                // BLOQUEO DE SEGURIDAD: Protocolo de Tiempo
-                const requestDate = new Date(args.fecha);
-                if (requestDate.getTime() < Date.now()) {
-                    console.warn(`NIA intentó agendar en el pasado. Solicitado: ${args.fecha}, Actual: ${new Date().toISOString()}`);
+                // Forzar Zona Horaria de Ciudad de México si el modelo no la incluye (-06:00)
+                let dateStr = args.fecha;
+                // Si la fecha termina en un número (no tiene Z ni offset final) le agregamos -06:00
+                if (/\d$/.test(dateStr)) {
+                    dateStr += '-06:00';
+                }
+                
+                // BLOQUEO DE SEGURIDAD: Protocolo de Tiempo y Anticipación (Mínimo 1 hora)
+                const requestDate = new Date(dateStr);
+                const nowMs = Date.now();
+                const oneHourMs = 60 * 60 * 1000;
+
+                if (requestDate.getTime() < nowMs + oneHourMs) {
+                    console.warn(`NIA intentó agendar muy pronto/pasado. Solicitado: ${dateStr}`);
                     return {
-                        error: "ERROR_PROTOCOLO_TIEMPO: La hora o fecha solicitada está en el pasado. NO SE AGENDÓ. Informa esto al usuario y pídele un nuevo horario.",
-                        tiempo_actual_real: new Date().toISOString()
+                        error: "ERROR_PROTOCOLO_TIEMPO: La hora solicitada está en el pasado o falta menos de 1 hora. NO SE AGENDÓ. El doctor requiere al menos 1 hora de anticipación. Pídele un nuevo horario.",
+                        tiempo_actual_real: new Date(nowMs).toISOString()
                     };
                 }
 
-                // BLOQUEO DE SEGURIDAD: Verificación de Disponibilidad (Conflictos de Horario)
+                // BLOQUEO DE SEGURIDAD: Verificación de Disponibilidad (Intervalos de 45 minutos)
+                const dayString = args.fecha.split('T')[0];
                 const { data: existingAppts, error: checkError } = await supabase
                     .from('appointments')
-                    .select('id, patients(nombre)')
+                    .select('id, fecha, patients(nombre)')
                     .eq('doctor_id', userId)
-                    .eq('fecha', args.fecha)
+                    .like('fecha', `${dayString}%`)
                     .neq('estado', 'cancelada');
 
                 if (checkError) {
@@ -144,13 +155,25 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     throw checkError;
                 }
 
+                const requestedMs = requestDate.getTime();
+                const fortyFiveMinsMs = 45 * 60 * 1000;
+
                 if (existingAppts && existingAppts.length > 0) {
-                    console.warn(`NIA intentó doble agendar. Fecha: ${args.fecha}`);
-                    const ocupadoPor = (existingAppts[0]?.patients as any)?.nombre || "otro paciente";
-                    return {
-                        error: `ERROR_CONFLICTO_HORARIO: El horario ${requestDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} ya está ocupado por ${ocupadoPor}. NO SE AGENDÓ. Informa esto al usuario y pídele que sugiera otra hora.`,
-                        estado_agenda: "OCUPADO"
-                    };
+                    for (const appt of existingAppts) {
+                        let apptDateStr = appt.fecha;
+                        if (/\d$/.test(apptDateStr)) apptDateStr += '-06:00';
+                        
+                        const apptMs = new Date(apptDateStr).getTime();
+                        // Si la diferencia entre la cita existente y la nueva es menor a 45 mins = conflicto
+                        if (Math.abs(requestedMs - apptMs) < fortyFiveMinsMs) {
+                            console.warn(`NIA intentó doble agendar. Conflicto con: ${appt.fecha}`);
+                            const ocupadoPor = (appt.patients as any)?.nombre || "otro paciente";
+                            return {
+                                error: `ERROR_CONFLICTO_HORARIO: El horario interfiere con otra cita programada para ${ocupadoPor} que abarca ese bloque (las citas requieren 45 minutos). NO SE AGENDÓ. Propón al usuario otro horario con al menos 45 mins de diferencia.`,
+                                estado_agenda: "OCUPADO"
+                            };
+                        }
+                    }
                 }
 
                 console.log('NIA: Inserting into "appointments" table...', {
