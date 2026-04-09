@@ -76,6 +76,16 @@ function cleanNiaResponse(content: string | null): string | null {
         } catch { /* no es JSON puro, continuar */ }
     }
 
+    // Si la respuesta es una "narración del workflow" (el modelo describe qué tools usar
+    // en vez de ejecutarlas), es una alucinación peligrosa — no mostrarla
+    const isNarratedWorkflow = (
+        // Menciona backtick-commands como instrucciones a ejecutar
+        /`search_patients`|`get_patient_complete_history`|`create_appointment`/.test(trimmed) ||
+        // Describe "comandos" a ejecutar (típico de alucinación de cadena de herramientas)
+        /con el comando|con la herramienta|usando el comando|ejecuta el comando/i.test(trimmed)
+    );
+    if (isNarratedWorkflow) return null;
+
     // Encontrar el primer marcador del reporte estructurado
     const markers = ['🚨', '📌', '📈', '💡'];
     let firstIdx = content.length;
@@ -128,15 +138,17 @@ PROHIBIDO ABSOLUTO: NUNCA incluyas en tu respuesta texto JSON, llamadas a herram
 REGLA DE CORTESÍA: Si el médico solo te saluda o hace una pregunta no clínica, responde brevemente y con cortesía usando su nombre (Dr. ${doctorName}), pero para CUALQUIER reporte clínico CUMPLE EL FORMATO ESTRICTO.
 
 FLUJO OBLIGATORIO:
-1. Si el médico pide algo sobre un paciente:
+1. Si el médico pide expediente/historial/actividad de un paciente:
    - USA 'search_patients' con SOLO EL NOMBRE O DNI del paciente. NUNCA incluyas palabras como "expediente", "historial", "cita" en el query — solo el nombre propio (ej: query="Laura Jimenez", NO query="Laura Jimenez expediente").
-   - USA 'get_patient_complete_history' con patient_id=<el campo 'id' exacto del resultado de search_patients>. SIEMPRE usa 'patient_id', NUNCA 'uuid' ni 'id'.
+   - USA 'get_patient_complete_history' con patient_id=<el campo 'id' exacto del resultado de search_patients>. SIEMPRE usa el parámetro 'patient_id', NUNCA 'uuid' ni 'id'.
    - Genera el REPORTE FINAL en el formato estricto.
-2. Si el médico pide agendar:
-   - USA 'create_appointment'.
+2. Si el médico pide AGENDAR una cita:
+   - PRIMERO verifica que el médico dio: nombre del paciente, fecha, hora y motivo.
+   - Si FALTA alguno de esos datos, NO llames ninguna tool — pregunta directamente: "¿Para qué fecha y hora? ¿Cuál es el motivo?"
+   - Si tienes todos los datos: USA 'search_patients' para obtener el UUID, luego USA 'create_appointment'.
    - ⏳ PROTOCOLO DE TIEMPO: Verifica que la hora y día solicitados NO estén en el pasado respecto a tu FECHA ACTUAL. Si la hora / día ya pasó, rechaza la solicitud pidiendo una hora nueva.
-   - Asegúrate de que la 'fecha' esté en formato ISO 8601 completo con timezone (ej: 2026-02-22T13:00:00).
-   - Responde confirmando que la cita fue agendada con éxito.
+   - Asegúrate de que la 'fecha' esté en formato ISO 8601 completo (ej: 2026-02-22T13:00:00).
+   - Responde confirmando que la cita fue agendada con éxito. NUNCA inventes ni confirmes una cita que no hayas creado realmente con la tool.
 
 MANTÉN EL TONO PROFESIONAL Y ELITISTA.
 FORMATO ESTRICTO DE RESPUESTA FINAL (PARA REPORTES):
@@ -285,9 +297,18 @@ export async function POST(req: Request) {
 
         console.log('NIA: Final Response Ready.');
 
-        // Limpiar contenido final — eliminar leakage de tool calls o datos crudos
+        // Limpiar contenido final — eliminar leakage de tool calls, datos crudos o narraciones
         if (data?.choices?.[0]?.message?.content) {
-            data.choices[0].message.content = cleanNiaResponse(data.choices[0].message.content);
+            const cleanedContent = cleanNiaResponse(data.choices[0].message.content);
+            if (!cleanedContent) {
+                // El cleaner detectó respuesta inválida — dar fallback humano
+                return NextResponse.json({
+                    choices: [{ message: { role: 'assistant', content:
+                        'Necesito más información. ¿Qué paciente buscas y qué necesitas hacer?'
+                    }}]
+                });
+            }
+            data.choices[0].message.content = cleanedContent;
         }
 
         // █ SAFETY GATE FINAL █
