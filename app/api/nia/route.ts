@@ -274,7 +274,7 @@ export async function POST(req: Request) {
                     model: NIA_TOOL_MODEL,
                     messages: [{ role: "system", content: systemPrompt }, ...chatHistory],
                     tools: NIA_TOOLS,
-                    tool_choice: "none", // FORZAR respuesta de texto — el modelo ya ejecutó las tools
+                    tool_choice: "auto", // Permitir que el modelo decida si ocupar otra tool (ej. create_appointment tras search_patients)
                     temperature: 0.1,
                 })
             });
