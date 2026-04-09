@@ -140,11 +140,16 @@ export default function LoginForm() {
                     Explorar Demo Interactivo
                 </button>
 
-                <div className="text-center">
+                <div className="text-center space-y-2">
                     <p className="text-xs text-slate-400">
                         ¿No tienes una cuenta? {' '}
                         <Link href="/register" className="font-bold text-slate-900 hover:text-emerald-600 underline-offset-4 hover:underline transition-colors">
                             Registra tu clínica
+                        </Link>
+                    </p>
+                    <p className="text-xs text-slate-400">
+                        <Link href="/presentacion" className="text-emerald-600 hover:underline underline-offset-4 transition-colors">
+                            Ver presentación del producto →
                         </Link>
                     </p>
                 </div>

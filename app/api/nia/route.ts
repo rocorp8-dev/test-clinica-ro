@@ -58,21 +58,20 @@ export async function POST(req: Request) {
             .eq('id', user.id)
             .single();
 
-        const doctorName = profile?.full_name || user.email?.split('@')[0] || 'Doctor';
+        const rawName = profile?.full_name || user.email?.split('@')[0] || 'Doctor';
+        const doctorName = rawName.replace(/^(Dr\.|Dra\.|Dr |Dra )\s*/i, '').trim();
         const systemPrompt = getNiaSystemPrompt(doctorName);
 
         // Initial AI Call with Tools
         console.log('NIA: Initializing AI request with tools...');
-        let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        let response = await fetch("https://api.cerebras.ai/v1/chat/completions", {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY} `,
+                "Authorization": `Bearer ${process.env.CEREBRAS_API_KEY}`,
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://mdpulso-ro.vercel.app",
-                "X-Title": "MdPulso Clinica",
             },
             body: JSON.stringify({
-                model: "openai/gpt-4o-mini",
+                model: "llama-3.3-70b",
                 messages: [{ role: "system", content: systemPrompt }, ...messages],
                 tools: NIA_TOOLS,
                 tool_choice: "auto",
@@ -82,7 +81,7 @@ export async function POST(req: Request) {
 
         let data = await response.json();
         if (!response.ok) {
-            console.error('NIA: OpenRouter Error:', data);
+            console.error('NIA: Cerebras Error:', data);
             return NextResponse.json({ error: data.error || 'AI Error' }, { status: 500 });
         }
 
@@ -114,13 +113,11 @@ export async function POST(req: Request) {
 
             console.log('NIA: Sending tool results back to AI...');
             // Call AI again with tool results
-            response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            response = await fetch("https://api.cerebras.ai/v1/chat/completions", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY} `,
+                    "Authorization": `Bearer ${process.env.CEREBRAS_API_KEY}`,
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "https://mdpulso-ro.vercel.app",
-                    "X-Title": "MdPulso Clinica",
                 },
                 body: JSON.stringify({
                     model: "openai/gpt-4o-mini",
@@ -133,7 +130,7 @@ export async function POST(req: Request) {
 
             data = await response.json();
             if (!response.ok) {
-                console.error('NIA: OpenRouter Loop Error:', data);
+                console.error('NIA: Cerebras Loop Error:', data);
                 break;
             }
 
