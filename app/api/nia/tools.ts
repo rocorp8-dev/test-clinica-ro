@@ -162,11 +162,15 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
 
                 // BLOQUEO DE SEGURIDAD: Verificación de Disponibilidad (Intervalos de 45 minutos)
                 const dayString = args.fecha.split('T')[0];
+                const startOfDay = new Date(`${dayString}T00:00:00-06:00`).toISOString();
+                const endOfDay = new Date(`${dayString}T23:59:59-06:00`).toISOString();
+                
                 const { data: existingAppts, error: checkError } = await supabase
                     .from('appointments')
                     .select('id, fecha, patients(nombre)')
                     .eq('doctor_id', userId)
-                    .like('fecha', `${dayString}%`)
+                    .gte('fecha', startOfDay)
+                    .lte('fecha', endOfDay)
                     .neq('estado', 'cancelada');
 
                 if (checkError) {

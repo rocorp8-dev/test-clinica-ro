@@ -1,21 +1,9 @@
-const https = require('https');
+require('dotenv').config({path: '.env.local'});
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-const req = https.request('https://api.cerebras.ai/v1/models', {
-  method: 'GET',
-  headers: {
-    'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`
-  }
-}, (res) => {
-  let data = '';
-  res.on('data', chunk => data += chunk);
-  res.on('end', () => {
-    try {
-      console.log(JSON.parse(data).data.map(m => m.id));
-    } catch (e) {
-      console.log(data);
-    }
-  });
-});
-
-req.on('error', e => console.error(e));
-req.end();
+async function run() {
+    const { data, error } = await supabase.from('appointments').select('*').like('fecha', '2026-04-11%');
+    console.log("Error:", error);
+}
+run();
