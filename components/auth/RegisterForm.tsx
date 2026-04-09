@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Stethoscope, Mail, Lock, User, Loader2, ArrowRight } from 'lucide-react'
+import Image from 'next/image'
+import { Mail, Lock, User, Loader2, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 
@@ -57,8 +58,8 @@ export default function RegisterForm() {
         >
             <div className="text-center space-y-2">
                 <div className="flex justify-center mb-4">
-                    <div className="p-3 bg-emerald-600 rounded-2xl shadow-xl">
-                        <Stethoscope className="h-8 w-8 text-white" />
+                    <div className="h-16 w-16 rounded-2xl overflow-hidden shadow-xl shadow-emerald-200">
+                        <Image src="/logo-mdpulso.png" alt="MdPulso" width={64} height={64} className="h-full w-full object-cover" />
                     </div>
                 </div>
                 <h1 className="text-3xl font-bold tracking-tight text-slate-900 font-display">Registrar Clínica</h1>

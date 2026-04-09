@@ -22,6 +22,12 @@ import AppointmentModal from '@/components/appointments/AppointmentModal'
 import PatientModal from '@/components/patients/PatientModal'
 import PatientDetailModal from '@/components/patients/PatientDetailModal'
 
+// Retorna YYYY-MM-DD en hora LOCAL del usuario (no UTC)
+const getLocalDateStr = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState({ patients: 0, appointments: 0, today: 0, balance: 0 })
   const [recentAppointments, setRecentAppointments] = useState<any[]>([])
@@ -67,8 +73,8 @@ export default function DashboardPage() {
           supabase.from('appointments')
             .select('*', { count: 'exact', head: true })
             .eq('doctor_id', user.id)
-            .gte('fecha', new Date().toISOString().split('T')[0])
-            .lte('fecha', new Date().toISOString().split('T')[0] + 'T23:59:59'),
+            .gte('fecha', getLocalDateStr())
+            .lte('fecha', getLocalDateStr() + 'T23:59:59'),
           supabase.from('billing')
             .select('amount')
             .eq('user_id', user.id)
@@ -139,8 +145,8 @@ export default function DashboardPage() {
       supabase.from('appointments')
         .select('*', { count: 'exact', head: true })
         .eq('doctor_id', user.id)
-        .gte('fecha', new Date().toISOString().split('T')[0])
-        .lte('fecha', new Date().toISOString().split('T')[0] + 'T23:59:59'),
+        .gte('fecha', getLocalDateStr())
+        .lte('fecha', getLocalDateStr() + 'T23:59:59'),
       supabase.from('billing')
         .select('amount')
         .eq('user_id', user.id)

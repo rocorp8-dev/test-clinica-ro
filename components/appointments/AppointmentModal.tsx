@@ -97,23 +97,33 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
                 return
             }
 
-            // ── Validación de Conflictos de Horario ────────
+            // ── Validación de Conflictos de Horario (ventana 45 min) ────────
+            const slotStart = new Date(fullFecha)
+            const slotEnd   = new Date(slotStart.getTime() + 45 * 60 * 1000)
+            const windowStart = new Date(slotStart.getTime() - 44 * 60 * 1000)
+
             const { data: existingAppts, error: checkError } = await supabase
                 .from('appointments')
-                .select('id, patients(nombre)')
+                .select('id, fecha, patients(nombre)')
                 .eq('doctor_id', user.id)
-                .eq('fecha', fullFecha)
                 .neq('estado', 'cancelada')
+                .gte('fecha', windowStart.toISOString())
+                .lt('fecha', slotEnd.toISOString())
 
             if (checkError) throw checkError
 
-            const conflictingAppts = appointment?.id
-                ? existingAppts?.filter(app => app.id !== appointment.id)
-                : existingAppts
+            const conflictingAppts = (existingAppts ?? []).filter(app => {
+                if (appointment?.id && app.id === appointment.id) return false
+                const appTime = new Date(app.fecha).getTime()
+                const diff = Math.abs(appTime - slotStart.getTime()) / 60000
+                return diff < 45
+            })
 
-            if (conflictingAppts && conflictingAppts.length > 0) {
-                const ocupadoPor = (conflictingAppts[0]?.patients as any)?.nombre || "otro paciente"
-                setError(`Conflicto de Agenda: El horario de las ${horaVal} ya está ocupado por ${ocupadoPor}.`)
+            if (conflictingAppts.length > 0) {
+                const other = conflictingAppts[0]
+                const ocupadoPor = (other?.patients as any)?.nombre || 'otro paciente'
+                const otherHora = new Date(other.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+                setError(`Conflicto de agenda: ${ocupadoPor} tiene cita a las ${otherHora}. Cada consulta dura 45 min — el siguiente horario disponible es a las ${new Date(slotEnd).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}.`)
                 setLoading(false)
                 return
             }

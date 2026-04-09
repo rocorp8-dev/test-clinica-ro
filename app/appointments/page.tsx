@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
+import { useSearchParams } from 'next/navigation'
 import {
     Plus,
     Calendar as CalendarIcon,
@@ -19,15 +20,32 @@ import { toast } from 'sonner'
 import AppointmentModal from '@/components/appointments/AppointmentModal'
 import CheckoutModal from '@/components/billing/CheckoutModal'
 
-export default function AppointmentsPage() {
+function AppointmentsContent() {
+    const searchParams = useSearchParams()
+    const highlightId = searchParams.get('highlight')
+    const dateParam = searchParams.get('date')
+
     const [appointments, setAppointments] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const [selectedDate, setSelectedDate] = useState(new Date())
-    const [currentMonth, setCurrentMonth] = useState(new Date())
+    const [selectedDate, setSelectedDate] = useState(() => {
+        if (dateParam) {
+            const [y, m, d] = dateParam.split('-').map(Number)
+            return new Date(y, m - 1, d)
+        }
+        return new Date()
+    })
+    const [currentMonth, setCurrentMonth] = useState(() => {
+        if (dateParam) {
+            const [y, m] = dateParam.split('-').map(Number)
+            return new Date(y, m - 1, 1)
+        }
+        return new Date()
+    })
     const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
     const [checkoutAppointment, setCheckoutAppointment] = useState<any>(null)
+    const highlightRef = useRef<HTMLDivElement>(null)
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
@@ -73,6 +91,15 @@ export default function AppointmentsPage() {
     useEffect(() => {
         loadAppointments()
     }, [loadAppointments])
+
+    // Scroll a la cita destacada después de cargar
+    useEffect(() => {
+        if (highlightId && !loading && highlightRef.current) {
+            setTimeout(() => {
+                highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }, 300)
+        }
+    }, [highlightId, loading])
 
     const confirmAppointment = async (id: string) => {
         try {
@@ -245,10 +272,11 @@ export default function AppointmentsPage() {
                     {appointmentsForSelectedDate.length > 0 ? appointmentsForSelectedDate.map((app, i) => (
                         <motion.div
                             key={app.id}
+                            ref={app.id === highlightId ? highlightRef : null}
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: i * 0.05 }}
-                            className="flex gap-3 md:gap-6 group"
+                            className={`flex gap-3 md:gap-6 group ${app.id === highlightId ? 'ring-2 ring-emerald-500 ring-offset-4 rounded-[1.8rem]' : ''}`}
                         >
                             <div className="flex flex-col items-center gap-2 pt-2 min-w-[50px] md:min-w-[60px]">
                                 <span className={`text-[11px] md:text-sm font-bold ${app.estado === 'cancelada' ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
@@ -383,5 +411,18 @@ export default function AppointmentsPage() {
                 appointment={checkoutAppointment}
             />
         </div>
+    )
+}
+
+export default function AppointmentsPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex flex-col items-center justify-center p-20 gap-4">
+                <Loader2 className="h-10 w-10 text-emerald-600 animate-spin" />
+                <p className="text-slate-500 font-medium italic">Cargando agenda...</p>
+            </div>
+        }>
+            <AppointmentsContent />
+        </Suspense>
     )
 }

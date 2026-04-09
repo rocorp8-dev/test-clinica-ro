@@ -1,8 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { Bell, Search, User, Sparkles, Menu, Stethoscope } from 'lucide-react'
+import Image from 'next/image'
+import { Bell, Search, User, Sparkles, Menu, Calendar, Clock, CheckCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+
+interface Notification {
+    id: string
+    type: 'cita_hoy' | 'cita_pendiente' | 'sistema'
+    title: string
+    description: string
+    time: string
+    read: boolean
+    link?: string
+}
 
 interface HeaderProps {
     onMenuClick?: () => void
@@ -10,10 +23,27 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick }: HeaderProps) {
     const [userName, setUserName] = useState<string>('Cargando...')
+    const [notifications, setNotifications] = useState<Notification[]>([])
+    const [showPanel, setShowPanel] = useState(false)
+    const panelRef = useRef<HTMLDivElement>(null)
+    const router = useRouter()
+
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key'
     )
+
+    const unread = notifications.filter(n => !n.read).length
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+                setShowPanel(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
 
     useEffect(() => {
         const getUserData = async () => {
@@ -24,14 +54,106 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     .select('full_name')
                     .eq('id', user.id)
                     .single()
-
                 setUserName(profile?.full_name || user.email?.split('@')[0] || 'Doctor')
+
+                // Cargar notificaciones reales
+                await loadNotifications(user.id)
             } else {
                 setUserName('Doctor Invitado')
             }
         }
         getUserData()
     }, [])
+
+    const loadNotifications = async (userId: string) => {
+        const today = new Date()
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
+        const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
+
+        // Citas de hoy
+        const { data: citasHoy } = await supabase
+            .from('appointments')
+            .select('id, fecha, motivo, estado, patients(nombre)')
+            .eq('doctor_id', userId)
+            .gte('fecha', startOfDay)
+            .lte('fecha', endOfDay)
+            .order('fecha', { ascending: true })
+
+        // Citas pendientes de confirmar
+        const { data: citasPendientes } = await supabase
+            .from('appointments')
+            .select('id, fecha, motivo, patients(nombre)')
+            .eq('doctor_id', userId)
+            .eq('estado', 'pendiente')
+            .gte('fecha', new Date().toISOString())
+            .order('fecha', { ascending: true })
+            .limit(5)
+
+        const notifs: Notification[] = []
+
+        // Extrae hora directo del string ISO sin conversión de timezone (igual que la agenda)
+        const extractTime = (fechaStr: string) => {
+            const timeStr = fechaStr?.split('T')[1]
+            if (!timeStr) return '--:--'
+            const [h, m] = timeStr.split(':')
+            let hours = parseInt(h)
+            const ampm = hours >= 12 ? 'p.m.' : 'a.m.'
+            hours = hours % 12 || 12
+            return `${hours}:${m} ${ampm}`
+        }
+
+        const extractDate = (fechaStr: string) => fechaStr?.split('T')[0] || ''
+
+        citasHoy?.forEach(c => {
+            const hora = extractTime(c.fecha)
+            const dateStr = extractDate(c.fecha)
+            notifs.push({
+                id: c.id,
+                type: 'cita_hoy',
+                title: `Consulta hoy a las ${hora}`,
+                description: `${(c.patients as any)?.nombre} — ${c.motivo || 'Sin motivo'}`,
+                time: hora,
+                read: false,
+                link: `/appointments?date=${dateStr}&highlight=${c.id}`
+            })
+        })
+
+        citasPendientes?.filter(c => !citasHoy?.find(h => h.id === c.id)).forEach(c => {
+            const timeStr = c.fecha?.split('T')[1] || ''
+            const dateStr = extractDate(c.fecha)
+            const [h, m] = timeStr.split(':')
+            let hours = parseInt(h)
+            const ampm = hours >= 12 ? 'p.m.' : 'a.m.'
+            hours = hours % 12 || 12
+            const horaLabel = `${hours}:${m} ${ampm}`
+            notifs.push({
+                id: c.id + '_pend',
+                type: 'cita_pendiente',
+                title: 'Cita sin confirmar',
+                description: `${(c.patients as any)?.nombre} — ${horaLabel}`,
+                time: horaLabel,
+                read: false,
+                link: `/appointments?date=${dateStr}&highlight=${c.id}`
+            })
+        })
+
+        if (notifs.length === 0) {
+            notifs.push({
+                id: 'sistema_ok',
+                type: 'sistema',
+                title: 'Sin eventos pendientes',
+                description: 'No tienes citas para hoy ni citas sin confirmar.',
+                time: 'ahora',
+                read: true,
+            })
+        }
+
+        setNotifications(notifs)
+    }
+
+    const markAllRead = () => {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    }
 
     return (
         <header className="sticky top-0 z-30 flex h-20 w-full items-center justify-between border-b border-slate-200/60 bg-white/70 px-4 md:px-8 backdrop-blur-xl">
@@ -57,8 +179,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     />
                 </div>
 
-                <div className="flex md:hidden items-center justify-center h-10 w-10 rounded-xl bg-emerald-500 shadow-lg shadow-emerald-500/20">
-                    <Stethoscope className="h-6 w-6 text-white" />
+                <div className="flex md:hidden h-10 w-10 rounded-xl overflow-hidden shadow-lg shadow-emerald-500/20 flex-shrink-0">
+                    <Image src="/logo-mdpulso.png" alt="MdPulso" width={40} height={40} className="h-full w-full object-cover" />
                 </div>
 
                 <div className="hidden lg:flex items-center gap-2 px-4 py-1.5 bg-emerald-50 rounded-full border border-emerald-100/50">
@@ -68,19 +190,88 @@ export default function Header({ onMenuClick }: HeaderProps) {
             </div>
 
             <div className="flex items-center gap-3 md:gap-6">
-                <div className="flex gap-1 md:gap-2">
+                <div className="relative flex gap-1 md:gap-2" ref={panelRef}>
                     <button
-                        onClick={() => toast('Notificaciones', { description: 'No tienes mensajes nuevos en este momento.' })}
+                        data-testid="bell-btn"
+                        onClick={() => setShowPanel(v => !v)}
                         className="relative rounded-2xl p-2 md:p-2.5 text-slate-500 hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all active:scale-95"
                     >
                         <Bell className="h-5 w-5" />
-                        <span className="absolute right-2.5 top-2.5 md:right-3 md:top-3 h-2 w-2 rounded-full bg-red-500 border-2 border-white ring-2 ring-red-500/20" />
+                        {unread > 0 && (
+                            <span className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center text-[9px] font-black text-white">
+                                {unread > 9 ? '9+' : unread}
+                            </span>
+                        )}
                     </button>
+
+                    <AnimatePresence>
+                        {showPanel && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute right-0 top-14 w-80 rounded-3xl bg-white border border-slate-100 shadow-2xl shadow-slate-200/60 overflow-hidden z-50"
+                            >
+                                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
+                                    <div className="flex items-center gap-2">
+                                        <Bell className="h-4 w-4 text-slate-600" />
+                                        <p className="text-sm font-black text-slate-900">Notificaciones</p>
+                                        {unread > 0 && (
+                                            <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-[9px] font-black text-white">{unread}</span>
+                                        )}
+                                    </div>
+                                    {unread > 0 && (
+                                        <button onClick={markAllRead} className="text-[10px] font-bold text-emerald-600 hover:underline">
+                                            Marcar leídas
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+                                    {notifications.map(n => (
+                                        <div
+                                            key={n.id}
+                                            onClick={() => {
+                                                if (n.link) {
+                                                    setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))
+                                                    setShowPanel(false)
+                                                    router.push(n.link)
+                                                }
+                                            }}
+                                            className={`flex items-start gap-3 px-5 py-4 transition-colors ${n.link ? 'cursor-pointer hover:bg-slate-50' : ''} ${!n.read ? 'bg-emerald-50/40' : 'bg-white'}`}
+                                        >
+                                            <div className={`mt-0.5 h-8 w-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                                n.type === 'cita_hoy' ? 'bg-emerald-100 text-emerald-600' :
+                                                n.type === 'cita_pendiente' ? 'bg-amber-100 text-amber-600' :
+                                                'bg-slate-100 text-slate-400'
+                                            }`}>
+                                                {n.type === 'cita_hoy' ? <Clock className="h-4 w-4" /> :
+                                                 n.type === 'cita_pendiente' ? <Calendar className="h-4 w-4" /> :
+                                                 <CheckCircle className="h-4 w-4" />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold text-slate-900 leading-tight">{n.title}</p>
+                                                <p className="text-[11px] text-slate-500 mt-0.5 truncate">{n.description}</p>
+                                            </div>
+                                            {!n.read && <div className="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0 mt-1" />}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="px-5 py-3 border-t border-slate-50">
+                                    <Link href="/appointments" onClick={() => setShowPanel(false)} className="block text-center text-xs font-bold text-emerald-600 hover:underline">
+                                        Ver agenda completa
+                                    </Link>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 <div className="h-8 w-px bg-slate-200 hidden sm:block" />
 
-                <div className="flex items-center gap-2 md:gap-4 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                <div className="flex items-center gap-2 md:gap-4">
                     <div className="text-right hidden sm:block">
                         <p className="text-sm font-bold text-slate-900 leading-none mb-1">{userName}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Director Médico</p>

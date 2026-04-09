@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
     LayoutDashboard,
@@ -8,7 +9,6 @@ import {
     Calendar,
     Settings,
     LogOut,
-    Stethoscope,
     ChevronRight,
     ShieldHalf,
     DollarSign
@@ -62,8 +62,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     {/* Brand */}
                     <div className="mb-10 flex items-center justify-between px-2">
                         <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500 shadow-xl shadow-emerald-500/20 ring-1 ring-white/10">
-                                <Stethoscope className="h-6 w-6 text-white" />
+                            <div className="h-11 w-11 rounded-2xl overflow-hidden shadow-xl shadow-emerald-500/20 ring-1 ring-white/10 flex-shrink-0">
+                                <Image src="/logo-mdpulso.png" alt="MdPulso" width={44} height={44} className="h-full w-full object-cover" />
                             </div>
                             <span className="text-2xl font-bold tracking-tight font-display italic">MdPulso</span>
                         </div>
