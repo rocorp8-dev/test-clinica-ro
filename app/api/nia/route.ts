@@ -308,6 +308,22 @@ export async function POST(req: Request) {
         console.log('NIA: Final Response Ready.');
 
         // Limpiar contenido final — eliminar leakage de tool calls, datos crudos o falsas confirmaciones
+        const createToolCall = chatHistory.find((h: any) => h.role === 'tool' && h.name === 'create_appointment');
+        
+        // REGLA: Si dice que agendó, PERO no usó create_appointment o este falló -> Es Alucinación Peligrosa
+        const finalText = data?.choices?.[0]?.message?.content || "";
+        const isFakeConfirmation = /(agendada|programada|reservada|confirmada|lista|agendé)/i.test(finalText);
+        if (isFakeConfirmation) {
+            if (!createToolCall) {
+                console.warn('NIA: 🛑 Bloqueo Crítico - Confirmación Falsa Detectada sin haber invocado create_appointment');
+                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 'Lo siento, no pude completar la reserva. Por favor, intenta de nuevo.' }}]});
+            }
+            if (createToolCall.content.includes('"error"')) {
+                console.warn('NIA: 🛑 Bloqueo Crítico - Confirmación Falsa Detectada. El tool execution falló pero el modelo mintió sobre el éxito.');
+                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 'Hubo un error al procesar la cita. Por favor, verifica los datos e intenta de nuevo.' }}]});
+            }
+        }
+
         const calledTools = chatHistory.filter(m => m.role === 'tool').map(m => m.name);
 
         if (data?.choices?.[0]?.message?.content) {
