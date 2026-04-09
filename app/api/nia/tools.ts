@@ -59,12 +59,17 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
     try {
         switch (name) {
             case 'search_patients': {
-                const { data, error } = await supabase
-                    .from('patients')
-                    .select('id, nombre, dni, telefono')
-                    .eq('user_id', userId)
-                    .or(`nombre.ilike.%${args.query}%,dni.ilike.%${args.query}%`)
-                    .limit(5);
+                // Quitar palabras en lenguaje natural que el médico incluye en el query
+                const stopWords = /\b(expediente|historial|cita|paciente|del?|de|la|el|los|las|me|muestra|mu[eé]strame|dame|busca|buscar|ver|quiero|necesito|informaci[oó]n|info|completo|completa)\b/gi;
+                const cleanQuery = args.query
+                    .replace(stopWords, '')
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // normalizar acentos
+                    .replace(/\s+/g, ' ').trim();
+
+                const { data, error } = await supabase.rpc('search_patients_nia', {
+                    search_query: `%${cleanQuery}%`,
+                    doctor_id: userId
+                });
 
                 if (error) {
                     console.error('NIA: search_patients error:', error);
