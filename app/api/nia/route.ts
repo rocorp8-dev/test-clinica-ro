@@ -7,10 +7,10 @@ import { cookies } from 'next/headers';
 export const maxDuration = 30;
 
 // Modelos disponibles en Cerebras (verificado 2026-04):
-// - llama3.1-8b: rápido (~1-2s), tool calls débiles, requiere fallback.
+// - llama3.1-8b: rápido (~1-2s), tool calls débiles, pero ya tenemos el fallback perfecto. (ACTIVO)
 // - qwen-3-235b: tool calls perfectos pero lento (8-12s → propicio a timeout en serverless)
-// - gpt-oss-120b: tool calls perfectos y rápido. (ACTIVO: Plan objetivo)
-const NIA_TOOL_MODEL = 'gpt-oss-120b';
+// - gpt-oss-120b: NO disponible en el plan/key actual (arroja error 500).
+const NIA_TOOL_MODEL = 'llama3.1-8b';
 
 /**
  * Fallback parser: detecta si el modelo retornó el tool call como texto
