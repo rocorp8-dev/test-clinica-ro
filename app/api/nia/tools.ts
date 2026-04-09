@@ -157,16 +157,16 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'get_today_agenda': {
+                // Usa el mismo enfoque que la Agenda page: filtro por prefijo de fecha string.
+                // Las citas se guardan sin timezone (ej: "2026-04-09T11:00"),
+                // así que .like() con prefix es más confiable que un range con offset.
                 const today = localDateStr();
-                const dayStart = `${today}T00:00:00-06:00`;
-                const dayEnd = `${today}T23:59:59-06:00`;
 
                 const { data, error } = await supabase
                     .from('appointments')
                     .select('id, fecha, motivo, estado, patients(nombre, telefono)')
                     .eq('doctor_id', userId)
-                    .gte('fecha', dayStart)
-                    .lte('fecha', dayEnd)
+                    .like('fecha', `${today}%`)
                     .order('fecha', { ascending: true });
 
                 if (error) throw error;
@@ -261,13 +261,12 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 }
 
                 // Verificar disponibilidad (bloques de 45 min)
-                const dayStr = dateStr.split('T')[0];
+                const dayStr = args.fecha.split('T')[0];
                 const { data: existing } = await supabase
                     .from('appointments')
                     .select('id, fecha, patients(nombre)')
                     .eq('doctor_id', userId)
-                    .gte('fecha', `${dayStr}T00:00:00-06:00`)
-                    .lte('fecha', `${dayStr}T23:59:59-06:00`)
+                    .like('fecha', `${dayStr}%`)
                     .neq('estado', 'cancelada');
 
                 const requestedMs = requestDate.getTime();
