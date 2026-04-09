@@ -150,10 +150,11 @@ export default function NiaAssistant() {
                         initial={{ opacity: 0, scale: 0.9, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0, height: isMinimized ? '80px' : 'min(640px, 85vh)' }}
                         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        className="mb-4 w-[calc(100vw-2rem)] sm:w-[420px] bg-slate-900/98 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl border border-white/10 overflow-hidden flex flex-col"
+                        className="mb-4 w-[calc(100vw-2rem)] sm:w-[420px] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col"
+                        style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.08)' }}
                     >
                         {/* Header */}
-                        <div className="p-5 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-emerald-500/10 to-transparent flex-shrink-0">
+                        <div className="p-5 border-b border-white/5 flex items-center justify-between flex-shrink-0" style={{ background: 'linear-gradient(to right, rgba(16,185,129,0.12), transparent)' }}>
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
                                     <Brain className="h-6 w-6 text-white" />
@@ -176,7 +177,7 @@ export default function NiaAssistant() {
                         {!isMinimized && (
                             <>
                                 {/* Chat Area */}
-                                <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-5 min-h-0">
+                                <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-5 min-h-0" style={{ background: '#0f172a' }}>
                                     {messages.length === 0 && (
                                         <div className="h-full flex flex-col items-center justify-center text-center space-y-4 py-8">
                                             <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
@@ -217,8 +218,8 @@ export default function NiaAssistant() {
                                             <div className={`max-w-[88%] p-4 rounded-3xl text-sm ${
                                                 msg.role === 'user'
                                                     ? 'bg-emerald-600 text-white rounded-tr-lg'
-                                                    : 'bg-white/5 text-slate-200 border border-white/5 rounded-tl-lg'
-                                            }`}>
+                                                    : 'rounded-tl-lg text-white'
+                                            }`} style={msg.role === 'assistant' ? { background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)' } : {}}>
                                                 {msg.role === 'assistant'
                                                     ? <div className="space-y-0">{renderContent(msg.content)}</div>
                                                     : <p className="leading-relaxed">{msg.content}</p>
@@ -229,9 +230,9 @@ export default function NiaAssistant() {
 
                                     {isLoading && (
                                         <div className="flex justify-start">
-                                            <div className="bg-white/5 px-5 py-4 rounded-3xl rounded-tl-lg border border-white/5 flex items-center gap-2">
+                                            <div className="px-5 py-4 rounded-3xl rounded-tl-lg flex items-center gap-2" style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)' }}>
                                                 <Loader2 className="h-4 w-4 text-emerald-500 animate-spin" />
-                                                <span className="text-xs text-slate-400">Analizando...</span>
+                                                <span className="text-xs text-slate-300">Analizando...</span>
                                             </div>
                                         </div>
                                     )}
@@ -239,7 +240,7 @@ export default function NiaAssistant() {
 
                                 {/* Quick Commands (cuando ya hay mensajes) */}
                                 {messages.length > 0 && (
-                                    <div className="px-4 pb-2 flex gap-2 overflow-x-auto flex-shrink-0">
+                                    <div className="px-4 pb-2 flex gap-2 overflow-x-auto flex-shrink-0" style={{ background: '#0f172a' }}>
                                         {QUICK_COMMANDS.map(({ icon: Icon, label, prompt }) => (
                                             <button
                                                 key={label}
@@ -254,8 +255,8 @@ export default function NiaAssistant() {
                                 )}
 
                                 {/* Input Area */}
-                                <div className="p-4 bg-white/[0.02] border-t border-white/5 flex-shrink-0">
-                                    <div className="relative flex items-end gap-2 bg-slate-800 rounded-2xl px-4 py-2 border border-white/5 focus-within:border-emerald-500/50 transition-all">
+                                <div className="p-4 border-t border-white/5 flex-shrink-0" style={{ background: '#0f172a' }}>
+                                    <div className="relative flex items-end gap-2 rounded-2xl px-4 py-2 transition-all" style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)' }}>
                                         <textarea
                                             ref={inputRef}
                                             value={input}
