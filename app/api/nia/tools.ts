@@ -6,10 +6,23 @@ const supabase = createClient(
     (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key')
 );
 
-// Helper: fecha local CDMX como YYYY-MM-DD
-function localDateStr(): string {
-    const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Helper: rango UTC correspondiente a un día completo en CDMX (UTC-6)
+// Ex: 2026-04-09 CDMX → { gte: '2026-04-09T06:00:00.000Z', lte: '2026-04-10T05:59:59.999Z' }
+function cdmxDayRangeUTC(isoDateStr?: string): { start: string; end: string; localDate: string } {
+    // Hora actual en CDMX
+    const nowCdmx = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+    const year = isoDateStr ? parseInt(isoDateStr.split('-')[0]) : nowCdmx.getFullYear();
+    const month = isoDateStr ? parseInt(isoDateStr.split('-')[1]) - 1 : nowCdmx.getMonth();
+    const day = isoDateStr ? parseInt(isoDateStr.split('-')[2]) : nowCdmx.getDate();
+    // CDMX es UTC-6 (o UTC-5 en horario de verano; usamos Date para que JS lo resuelva)
+    const startCdmx = new Date(year, month, day, 0, 0, 0, 0);
+    const endCdmx   = new Date(year, month, day, 23, 59, 59, 999);
+    // Offset CDMX en ms (normalmente -6h o -5h en verano)
+    const offsetMs = new Date(startCdmx.toLocaleString('en-US', { timeZone: 'America/Mexico_City' })).getTime() - startCdmx.getTime();
+    const startUTC = new Date(startCdmx.getTime() - offsetMs);
+    const endUTC   = new Date(endCdmx.getTime()   - offsetMs);
+    const localDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return { start: startUTC.toISOString(), end: endUTC.toISOString(), localDate };
 }
 
 export const NIA_TOOLS = [
@@ -157,20 +170,23 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'get_today_agenda': {
-                // Usa el mismo enfoque que la Agenda page: filtro por prefijo de fecha string.
-                // Las citas se guardan sin timezone (ej: "2026-04-09T11:00"),
-                // así que .like() con prefix es más confiable que un range con offset.
-                const today = localDateStr();
+                // fecha es timestamptz — .like() NO funciona en PostgREST con ese tipo.
+                // Usamos rango UTC que cubre el día completo en CDMX.
+                const { start, end, localDate } = cdmxDayRangeUTC();
 
                 const { data, error } = await supabase
                     .from('appointments')
                     .select('id, fecha, motivo, estado, patients(nombre, telefono)')
                     .eq('doctor_id', userId)
-                    .like('fecha', `${today}%`)
+                    .gte('fecha', start)
+                    .lte('fecha', end)
                     .order('fecha', { ascending: true });
 
-                if (error) throw error;
-                return { date: today, total: data?.length || 0, appointments: data || [] };
+                if (error) {
+                    console.error('NIA get_today_agenda DB error:', error);
+                    throw error;
+                }
+                return { date: localDate, total: data?.length || 0, appointments: data || [] };
             }
 
             case 'confirm_appointment': {
@@ -261,12 +277,15 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 }
 
                 // Verificar disponibilidad (bloques de 45 min)
-                const dayStr = args.fecha.split('T')[0];
+                // fecha es timestamptz — usamos rango UTC del día para evitar error 42883
+                const dayStr = dateStr.split('T')[0]; // YYYY-MM-DD del ISO normalizado
+                const { start: dayStart, end: dayEnd } = cdmxDayRangeUTC(dayStr);
                 const { data: existing } = await supabase
                     .from('appointments')
                     .select('id, fecha, patients(nombre)')
                     .eq('doctor_id', userId)
-                    .like('fecha', `${dayStr}%`)
+                    .gte('fecha', dayStart)
+                    .lte('fecha', dayEnd)
                     .neq('estado', 'cancelada');
 
                 const requestedMs = requestDate.getTime();
