@@ -121,23 +121,33 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'create_appointment': {
-                // AUTO-HEALING: Modelos pequeños (llama3.1-8b) a veces intentan pasar el Nombre en lugar de buscar el UUID.
-                // Si el patient_id no es un UUID válido, intentaremos deducirlo automáticamente usando search_patients_nia.
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(args.patient_id);
+                // AUTO-HEALING: Modelos pequeños (llama3.1-8b) a veces intentan pasar el Nombre en lugar de buscar el UUID 
+                // e incluso inventan el parámetro "nombre" olvidando "patient_id" por completo.
+                let patientParam = args.patient_id || args.nombre || args.paciente || args.query;
+                
+                if (!patientParam) {
+                    return { error: "ERROR: No proporcionaste el patient_id ni el nombre del paciente." };
+                }
+
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientParam);
                 if (!isUuid) {
-                    console.log(`NIA AutoHealing: patient_id is not a UUID ("${args.patient_id}"). Attempting to search...`);
-                    const cleanQuery = args.patient_id.replace(/\b(de|la|el|los|las)\b/gi, '').trim();
+                    console.log(`NIA AutoHealing: patient argument is not a UUID ("${patientParam}"). Attempting to search...`);
+                    // Convert to string safely in case it's somehow not a string
+                    const paramStr = String(patientParam);
+                    const cleanQuery = paramStr.replace(/\b(de|la|el|los|las)\b/gi, '').trim();
                     const { data: searchResults, error: sErr } = await supabase.rpc('search_patients_nia', {
                         search_query: `%${cleanQuery}%`,
                         doctor_id: userId
                     });
                     
                     if (sErr || !searchResults || searchResults.length === 0) {
-                        return { error: `ERROR_PACIENTE_NO_ENCONTRADO: Busqué a "${args.patient_id}" pero no existe en la base de datos de pacientes. Pide al médico que revise el nombre y registre al paciente.` };
+                        return { error: `ERROR_PACIENTE_NO_ENCONTRADO: Busqué a "${paramStr}" pero no existe en la base de datos de pacientes. Pide al médico que revise el nombre y registre al paciente.` };
                     }
                     // Auto-asignar el UUID real del primer match
                     args.patient_id = searchResults[0].id;
                     console.log(`NIA AutoHealing: resolved to UUID -> ${args.patient_id}`);
+                } else {
+                    args.patient_id = patientParam;
                 }
 
                 // Limpiar la fecha y asegurar que tenga timezone, evitando duplicar offsets
