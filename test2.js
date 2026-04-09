@@ -22,9 +22,9 @@ FORMATO ESTRICTO:
 
 const messages = [
   { role: "system", content: systemPrompt },
-  { role: "user", content: "cita roberto cruz" },
-  { role: "assistant", content: "¿Para qué fecha y hora? ¿Cuál es el motivo?" },
-  { role: "user", content: "fecha 12 abril 2026 a las 11am, chequeo de rutina" }
+  { role: "user", content: "cita roberto cruz fecha 12 abril 2026 a las 11am, chequeo de rutina" },
+  { role: "assistant", content: "Necesito más información. ¿Cuál es el nombre del paciente, para cuándo sería la cita y cuál es el motivo?" },
+  { role: "user", content: "seria el dia 11 de abril a las 11am, roberto cruz, motivo chequeo de glucosa" }
 ];
 
 const tools = [

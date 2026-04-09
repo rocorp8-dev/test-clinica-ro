@@ -121,6 +121,25 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'create_appointment': {
+                // AUTO-HEALING: Modelos pequeños (llama3.1-8b) a veces intentan pasar el Nombre en lugar de buscar el UUID.
+                // Si el patient_id no es un UUID válido, intentaremos deducirlo automáticamente usando search_patients_nia.
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(args.patient_id);
+                if (!isUuid) {
+                    console.log(`NIA AutoHealing: patient_id is not a UUID ("${args.patient_id}"). Attempting to search...`);
+                    const cleanQuery = args.patient_id.replace(/\b(de|la|el|los|las)\b/gi, '').trim();
+                    const { data: searchResults, error: sErr } = await supabase.rpc('search_patients_nia', {
+                        search_query: `%${cleanQuery}%`,
+                        doctor_id: userId
+                    });
+                    
+                    if (sErr || !searchResults || searchResults.length === 0) {
+                        return { error: `ERROR_PACIENTE_NO_ENCONTRADO: Busqué a "${args.patient_id}" pero no existe en la base de datos de pacientes. Pide al médico que revise el nombre y registre al paciente.` };
+                    }
+                    // Auto-asignar el UUID real del primer match
+                    args.patient_id = searchResults[0].id;
+                    console.log(`NIA AutoHealing: resolved to UUID -> ${args.patient_id}`);
+                }
+
                 // Forzar Zona Horaria de Ciudad de México si el modelo no la incluye (-06:00)
                 let dateStr = args.fecha;
                 // Si la fecha termina en un número (no tiene Z ni offset final) le agregamos -06:00
