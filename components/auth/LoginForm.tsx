@@ -116,13 +116,29 @@ export default function LoginForm() {
             </form>
 
             <div className="flex flex-col gap-4">
-                <Link
-                    href="/presentacion"
+                <button
+                    type="button"
+                    onClick={async () => {
+                        setLoading(true)
+                        try {
+                            const { error } = await supabase.auth.signInWithPassword({
+                                email: 'demo@mdpulso.com',
+                                password: 'Demo1234!',
+                            })
+                            if (error) throw error
+                            router.push('/')
+                            router.refresh()
+                        } catch {
+                            toast.error('Demo no disponible', { description: 'Contacta al equipo de MdPulso.' })
+                        } finally {
+                            setLoading(false)
+                        }
+                    }}
                     className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-slate-100 px-4 py-3 text-sm font-bold text-slate-600 transition-all hover:bg-slate-50 hover:border-slate-200 active:scale-[0.98]"
                 >
                     <Sparkles className="h-4 w-4 text-emerald-500" />
-                    Ver Presentación del Producto
-                </Link>
+                    Explorar Demo Interactivo
+                </button>
 
                 <div className="text-center">
                     <p className="text-xs text-slate-400">

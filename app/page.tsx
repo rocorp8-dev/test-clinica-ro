@@ -11,7 +11,9 @@ import {
   ArrowUpRight,
   MoreHorizontal,
   Stethoscope,
-  Sparkles
+  Sparkles,
+  Gift,
+  X
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -28,6 +30,8 @@ export default function DashboardPage() {
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
+  const [showTrialBanner, setShowTrialBanner] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
@@ -39,6 +43,22 @@ export default function DashboardPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
+
+        // Trial status
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('trial_ends_at, is_trial')
+          .eq('id', user.id)
+          .single()
+
+        if (profile?.is_trial && profile?.trial_ends_at) {
+          const msLeft = new Date(profile.trial_ends_at).getTime() - Date.now()
+          const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24))
+          if (daysLeft > 0) {
+            setTrialDaysLeft(daysLeft)
+            setShowTrialBanner(true)
+          }
+        }
 
         // Stats
         const [patientsRes, appRes, todayRes, billingRes] = await Promise.all([
@@ -177,6 +197,35 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 md:space-y-10 pb-20">
+      {/* Trial Banner */}
+      {showTrialBanner && trialDaysLeft !== null && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`flex items-center justify-between gap-4 rounded-2xl px-5 py-4 border ${
+            trialDaysLeft <= 5
+              ? 'bg-amber-50 border-amber-200 text-amber-900'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <Gift className={`h-5 w-5 flex-shrink-0 ${trialDaysLeft <= 5 ? 'text-amber-500' : 'text-emerald-500'}`} />
+            <p className="text-sm font-semibold">
+              {trialDaysLeft <= 5
+                ? `Tu período de prueba vence en ${trialDaysLeft} día${trialDaysLeft !== 1 ? 's' : ''}. Contáctanos para continuar.`
+                : `Prueba gratuita activa — Te quedan ${trialDaysLeft} días para explorar MdPulso sin costo.`
+              }
+            </p>
+          </div>
+          <button
+            onClick={() => setShowTrialBanner(false)}
+            className="p-1.5 rounded-lg hover:bg-black/5 transition-colors flex-shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </motion.div>
+      )}
+
       {/* Welcome Banner */}
       <section className="relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-slate-900 p-6 md:p-10 text-white shadow-2xl">
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6 md:gap-8">
@@ -256,7 +305,15 @@ export default function DashboardPage() {
                       {new Date(app.fecha).toLocaleDateString('es-ES', { weekday: 'short' })}
                     </span>
                     <span className="text-sm leading-none">
-                      {new Date(app.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                      {(() => {
+                        const timeStr = app.fecha.split('T')[1]
+                        if (!timeStr) return '--:--'
+                        const [h, m] = timeStr.split(':')
+                        let hours = parseInt(h)
+                        const ampm = hours >= 12 ? 'p.m.' : 'a.m.'
+                        hours = hours % 12 || 12
+                        return `${hours}:${m} ${ampm}`
+                      })()}
                     </span>
                   </div>
                   <div
