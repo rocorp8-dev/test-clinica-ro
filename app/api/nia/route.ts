@@ -6,11 +6,34 @@ import { cookies } from 'next/headers';
 // Vercel: aumentar timeout para tool call loops (default 10s es insuficiente)
 export const maxDuration = 30;
 
-// Modelos disponibles en Cerebras (verificado 2026-04):
-// - llama3.1-8b: rápido (~1-2s), tool calls débiles, pero ya tenemos el fallback perfecto. (ACTIVO)
-// - qwen-3-235b: tool calls perfectos pero lento (8-12s → propicio a timeout en serverless)
-// - gpt-oss-120b: NO disponible en el plan/key actual (arroja error 500).
-const NIA_TOOL_MODEL = 'llama3.1-8b';
+// Proveedor primario: Groq llama-3.3-70b (tool calling nativo, ~1s)
+// Fallback: Cerebras llama3.1-8b (rápido pero tool calling débil — tenemos fallback parser)
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const CEREBRAS_MODEL = 'llama3.1-8b';
+
+async function callNiaAI(payload: Record<string, unknown>): Promise<{ ok: boolean; data: any }> {
+    const groqKey = process.env.GROQ_API_KEY;
+    if (groqKey) {
+        try {
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...payload, model: GROQ_MODEL }),
+            });
+            const d = await res.json();
+            if (res.ok) { console.log('NIA: usando Groq ✅'); return { ok: true, data: d }; }
+            console.warn('NIA: Groq error, fallback Cerebras:', d?.error?.message);
+        } catch (e) { console.warn('NIA: Groq excepción, fallback:', e); }
+    }
+    const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, model: CEREBRAS_MODEL }),
+    });
+    const d = await res.json();
+    console.log('NIA: usando Cerebras' + (res.ok ? ' ✅' : ' ❌'));
+    return { ok: res.ok, data: d };
+}
 
 /**
  * Fallback parser: detecta si el modelo retornó el tool call como texto
@@ -135,37 +158,50 @@ function isRawToolCallJson(content: string | null): boolean {
     }
 }
 
-const getNiaSystemPrompt = (doctorName: string) => `ROL: Eres "Nia" (Neural Interface Assistant).
-CONTEXTO: Copiloto clínico de élite en MdPulso con acceso total a DB.
-MÉDICO ACTUAL: Dr. ${doctorName} (Dirígete a él por su nombre si te saluda o pregunta algo general).
-FECHA ACTUAL: ${new Date().toLocaleString('es-ES', { timeZone: 'America/Mexico_City' })} (Usa esto para calcular 'hoy', 'mañana', etc.)
+const getNiaSystemPrompt = (doctorName: string) => `ROL: Eres "Nia" — Neural Interface Assistant, copiloto clínico de élite en MdPulso.
+MÉDICO ACTUAL: Dr. ${doctorName}
+FECHA/HORA CDMX: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
 
-REGLA DE ORO: NO des respuestas intermedias como "Un momento", "Voy a buscar" o "He encontrado...".
-TU RESPUESTA DEBE SER ÚNICAMENTE EL RESULTADO FINAL O EL REPORTE ESTRICTO.
-PROHIBIDO ABSOLUTO: NUNCA incluyas en tu respuesta texto JSON, llamadas a herramientas, ni datos crudos como {"name":...} o {'uuid':...}. Tu respuesta al médico empieza SIEMPRE directamente con 🚨 si es un reporte clínico.
+━━━ REGLAS DE CONDUCTA ━━━
+• NUNCA des respuestas intermedias ("Un momento", "Voy a buscar"). Solo el resultado final.
+• NUNCA incluyas JSON, tool calls ni datos crudos en tu respuesta visible al médico.
+• NUNCA confirmes ni inventes una acción que no hayas completado realmente con una tool.
+• Si el médico saluda o pregunta algo no clínico, responde con cortesía breve y cálida.
 
-REGLA DE CORTESÍA: Si el médico solo te saluda o hace una pregunta no clínica, responde brevemente y con cortesía usando su nombre (Dr. ${doctorName}), pero para CUALQUIER reporte clínico CUMPLE EL FORMATO ESTRICTO.
+━━━ TOOLS DISPONIBLES Y CUÁNDO USARLAS ━━━
 
-FLUJO OBLIGATORIO:
-1. Si el médico pide expediente/historial/actividad de un paciente:
-   - USA 'search_patients' con SOLO EL NOMBRE O DNI del paciente. NUNCA incluyas palabras como "expediente", "historial", "cita" en el query — solo el nombre propio (ej: query="Laura Jimenez", NO query="Laura Jimenez expediente").
-   - USA 'get_patient_complete_history' con patient_id=<el campo 'id' exacto del resultado de search_patients>. SIEMPRE usa el parámetro 'patient_id', NUNCA 'uuid' ni 'id'.
-   - Genera el REPORTE FINAL en el formato estricto.
-2. Si el médico pide AGENDAR una cita:
-   - PRIMERO verifica que el médico dio: nombre del paciente, fecha, hora y motivo.
-   - Si FALTA alguno de esos datos, NO llames ninguna tool — pregunta directamente: "¿Para qué fecha y hora? ¿Cuál es el motivo?"
-   - Si tienes todos los datos: USA 'search_patients' para obtener el UUID, luego USA 'create_appointment'.
-   - ⏳ PROTOCOLO DE TIEMPO Y COLISIONES: Las citas duran 45 minutos. El doctor exige un mínimo de 1 hora de anticipación respecto a tu FECHA ACTUAL ("hoy" a este minuto). No puedes agendar en el pasado ni inmediatamente.
-   - Si recibes el error ERROR_CONFLICTO_HORARIO de la herramienta (choque con reserva previa), PROPÓN directamente un horario alternativo con al menos 45 minutos libres.
-   - Asegúrate de que la 'fecha' esté en formato ISO 8601 completo incluyendo la zona horaria CDMX explícita (ej: 2026-02-22T13:00:00-06:00).
-   - Responde confirmando que la cita fue agendada con éxito CUMPLIENDO el formato estricto de reportes. NUNCA inventes ni confirmes una cita que no hayas creado realmente con la tool.
+1. search_patients(query) — Busca pacientes por nombre o DNI.
+   • Usa SOLO el nombre propio como query. Ej: query="Laura Jimenez", NO "Laura expediente".
 
-MANTÉN EL TONO PROFESIONAL Y ELITISTA.
-FORMATO ESTRICTO DE RESPUESTA FINAL (PARA REPORTES):
-1. 🚨 ALERTAS DE SEGURIDAD
-2. 📌 SNAPSHOT CLÍNICO
-3. 📈 TENDENCIA Y PATRONES
-4. 💡 SUGERENCIA OPERATIVA`;
+2. get_patient_complete_history(patient_id) — Historial completo del paciente.
+   • Siempre usa el campo 'id' del resultado de search_patients como patient_id.
+
+3. get_today_agenda() — Agenda de HOY completa con id de cada cita.
+   • Úsala cuando el médico pregunte "¿qué tengo hoy?", "mi agenda", "pacientes de hoy".
+
+4. create_appointment(patient_id, fecha, motivo) — Crea una nueva cita.
+   • REQUIERE: nombre/id del paciente + fecha + hora + motivo. Si falta algo, PREGUNTA primero.
+   • fecha en ISO 8601 con timezone CDMX: 2026-04-15T10:00:00-06:00
+   • Mínimo 1 hora de anticipación. Las citas ocupan bloques de 45 min.
+
+5. confirm_appointment(appointment_id) — Confirma una cita existente.
+   • Para obtener el appointment_id: primero usa get_today_agenda.
+
+6. cancel_appointment(appointment_id) — Cancela una cita.
+   • Para obtener el appointment_id: primero usa get_today_agenda.
+
+7. add_medical_note(patient_id, subjetivo, analisis, plan, objetivo?, cie10?) — Nota SOAP.
+   • Úsala cuando el médico diga "agrega nota", "anota", "registra" sobre un paciente.
+   • Si no tiene el patient_id, primero usa search_patients.
+
+━━━ FORMATO DE RESPUESTA ━━━
+Para expedientes/historiales, usa SIEMPRE este formato:
+🚨 ALERTAS DE SEGURIDAD — alergias, medicamentos de riesgo, condiciones críticas
+📌 SNAPSHOT CLÍNICO — nombre, diagnósticos activos, medicamentos, citas recientes
+📈 TENDENCIA — patrones en el historial
+💡 SUGERENCIA OPERATIVA — próximo paso clínico recomendado
+
+Para agenda/confirmaciones/notas: responde en texto natural claro y conciso.`;
 
 export async function POST(req: Request) {
     try {
@@ -199,26 +235,17 @@ export async function POST(req: Request) {
         const systemPrompt = getNiaSystemPrompt(doctorName);
 
         // Initial AI Call with Tools
-        console.log(`NIA: Initializing AI request with model=${NIA_TOOL_MODEL}...`);
-        let response = await fetch("https://api.cerebras.ai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${process.env.CEREBRAS_API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: NIA_TOOL_MODEL,
-                messages: [{ role: "system", content: systemPrompt }, ...messages],
-                tools: NIA_TOOLS,
-                tool_choice: "auto", // auto: permite al modelo pedir info faltante sin forzar tool call
-                temperature: 0.1,
-            })
+        console.log('NIA: Starting AI request...');
+        let { ok: firstOk, data } = await callNiaAI({
+            messages: [{ role: 'system', content: systemPrompt }, ...messages],
+            tools: NIA_TOOLS,
+            tool_choice: 'auto',
+            temperature: 0.1,
         });
 
-        let data = await response.json();
-        if (!response.ok) {
-            console.error('NIA: Cerebras Error:', data);
-            return NextResponse.json({ error: data.error || 'AI Error' }, { status: 500 });
+        if (!firstOk) {
+            console.error('NIA: AI Error:', data);
+            return NextResponse.json({ error: data?.error || 'AI Error' }, { status: 500 });
         }
 
         let message = data.choices[0].message;
@@ -263,25 +290,15 @@ export async function POST(req: Request) {
             }
 
             console.log('NIA: Sending tool results back to AI...');
-            // Call AI again with tool results
-            response = await fetch("https://api.cerebras.ai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${process.env.CEREBRAS_API_KEY}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    model: NIA_TOOL_MODEL,
-                    messages: [{ role: "system", content: systemPrompt }, ...chatHistory],
-                    tools: NIA_TOOLS,
-                    tool_choice: "auto", // Permitir que el modelo decida si ocupar otra tool (ej. create_appointment tras search_patients)
-                    temperature: 0.1,
-                })
+            const loopResult = await callNiaAI({
+                messages: [{ role: 'system', content: systemPrompt }, ...chatHistory],
+                tools: NIA_TOOLS,
+                tool_choice: 'auto',
+                temperature: 0.1,
             });
-
-            data = await response.json();
-            if (!response.ok) {
-                console.error('NIA: Cerebras Loop Error:', data);
+            data = loopResult.data;
+            if (!loopResult.ok) {
+                console.error('NIA: Loop AI Error:', data);
                 break;
             }
 
@@ -307,20 +324,22 @@ export async function POST(req: Request) {
 
         console.log('NIA: Final Response Ready.');
 
-        // Limpiar contenido final — eliminar leakage de tool calls, datos crudos o falsas confirmaciones
-        const createToolCall = chatHistory.find((h: any) => h.role === 'tool' && h.name === 'create_appointment');
-        
-        // REGLA: Si dice que agendó, PERO no usó create_appointment o este falló -> Es Alucinación Peligrosa
-        const finalText = data?.choices?.[0]?.message?.content || "";
-        const isFakeConfirmation = /(agendada|programada|reservada|confirmada|lista|agendé)/i.test(finalText);
-        if (isFakeConfirmation) {
-            if (!createToolCall) {
-                console.warn('NIA: 🛑 Bloqueo Crítico - Confirmación Falsa Detectada sin haber invocado create_appointment');
-                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 'Lo siento, no pude completar la reserva. Por favor, intenta de nuevo.' }}]});
+        // Bloquear alucinaciones de citas: el modelo NO puede decir "agendé/quedó agendada"
+        // sin haber llamado create_appointment exitosamente.
+        const createToolResult = chatHistory.find((h: any) => h.role === 'tool' && h.name === 'create_appointment');
+        const finalText = data?.choices?.[0]?.message?.content || '';
+        const claimsAppointmentCreated = /\b(agend[eé]|quedó agendad[oa]|cita creada|cita agendada con éxito)\b/i.test(finalText);
+        if (claimsAppointmentCreated) {
+            if (!createToolResult) {
+                console.warn('NIA 🛑: false appointment confirmation — create_appointment never called');
+                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 'No pude completar la cita. Por favor intenta de nuevo con nombre del paciente, fecha, hora y motivo.' }}]});
             }
-            if (createToolCall.content.includes('"error"')) {
-                console.warn('NIA: 🛑 Bloqueo Crítico - Confirmación Falsa Detectada. El tool execution falló pero el modelo mintió sobre el éxito.');
-                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 'Hubo un error al procesar la cita. Por favor, verifica los datos e intenta de nuevo.' }}]});
+            if (createToolResult.content.includes('"error"')) {
+                console.warn('NIA 🛑: false appointment confirmation — create_appointment returned error');
+                try {
+                    const toolErr = JSON.parse(createToolResult.content);
+                    return NextResponse.json({ choices: [{ message: { role: 'assistant', content: toolErr.error || 'Error al agendar. Por favor verifica los datos.' }}]});
+                } catch { /* content no es JSON parseable */ }
             }
         }
 
@@ -360,13 +379,12 @@ export async function POST(req: Request) {
                         console.error('NIA: Safety gate tool execution error:', e);
                     }
                 }
-                const safetyResponse = await fetch("https://api.cerebras.ai/v1/chat/completions", {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: NIA_TOOL_MODEL, messages: [{ role: 'system', content: systemPrompt }, ...safetyHistory], temperature: 0.1 })
+                const safetyResult = await callNiaAI({
+                    messages: [{ role: 'system', content: systemPrompt }, ...safetyHistory],
+                    temperature: 0.1
                 });
-                if (safetyResponse.ok) {
-                    const safetyData = await safetyResponse.json();
+                if (safetyResult.ok) {
+                    const safetyData = safetyResult.data;
                     const safeContent = safetyData?.choices?.[0]?.message?.content;
                     if (safeContent && !isRawToolCallJson(safeContent)) {
                         const allCalledTools = [...calledTools, ...extracted.map(t => t.name)];
