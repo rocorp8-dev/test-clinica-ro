@@ -57,6 +57,40 @@ function extractToolCallsFromContent(content: string | null): { name: string; ar
     return null;
 }
 
+/**
+ * Limpia el contenido final de NIA:
+ * Elimina cualquier texto antes del primer marcador de sección (🚨, 📌, 📈, 💡).
+ * También elimina líneas que sean solo JSON de tool call o dicts de Python.
+ */
+function cleanNiaResponse(content: string | null): string | null {
+    if (!content) return content;
+
+    // Encontrar el primer marcador del reporte estructurado
+    const markers = ['🚨', '📌', '📈', '💡'];
+    let firstIdx = content.length;
+    for (const marker of markers) {
+        const idx = content.indexOf(marker);
+        if (idx !== -1 && idx < firstIdx) firstIdx = idx;
+    }
+
+    // Si hay contenido antes del primer marcador, descartarlo
+    const cleaned = firstIdx < content.length ? content.slice(firstIdx) : content;
+
+    // Eliminar líneas que sean JSON crudo de tool call o Python dicts
+    return cleaned
+        .split('\n')
+        .filter(line => {
+            const t = line.trim();
+            if (!t) return true;
+            // Línea que es solo JSON de tool call
+            if (t.startsWith('{') && (t.includes('"name"') && t.includes('"arguments"'))) return false;
+            // Línea que es solo Python dict (single-quote keys)
+            if (t.startsWith('{') && t.includes("'uuid'")) return false;
+            return true;
+        })
+        .join('\n');
+}
+
 /** Detecta si un string es JSON de tool call que jamás debe verse por el doctor */
 function isRawToolCallJson(content: string | null): boolean {
     if (!content) return false;
@@ -77,6 +111,7 @@ FECHA ACTUAL: ${new Date().toLocaleString('es-ES', { timeZone: 'America/Mexico_C
 
 REGLA DE ORO: NO des respuestas intermedias como "Un momento", "Voy a buscar" o "He encontrado...".
 TU RESPUESTA DEBE SER ÚNICAMENTE EL RESULTADO FINAL O EL REPORTE ESTRICTO.
+PROHIBIDO ABSOLUTO: NUNCA incluyas en tu respuesta texto JSON, llamadas a herramientas, ni datos crudos como {"name":...} o {'uuid':...}. Tu respuesta al médico empieza SIEMPRE directamente con 🚨 si es un reporte clínico.
 
 REGLA DE CORTESÍA: Si el médico solo te saluda o hace una pregunta no clínica, responde brevemente y con cortesía usando su nombre (Dr. ${doctorName}), pero para CUALQUIER reporte clínico CUMPLE EL FORMATO ESTRICTO.
 
@@ -238,6 +273,11 @@ export async function POST(req: Request) {
 
         console.log('NIA: Final Response Ready.');
 
+        // Limpiar contenido final — eliminar leakage de tool calls o datos crudos
+        if (data?.choices?.[0]?.message?.content) {
+            data.choices[0].message.content = cleanNiaResponse(data.choices[0].message.content);
+        }
+
         // █ SAFETY GATE FINAL █
         // NUNCA retornar JSON raw de tool call al doctor.
         // Si el contenido final es JSON de tool call, intenta ejecutarlo una vez más.
@@ -268,6 +308,7 @@ export async function POST(req: Request) {
                     const safetyData = await safetyResponse.json();
                     const safeContent = safetyData?.choices?.[0]?.message?.content;
                     if (safeContent && !isRawToolCallJson(safeContent)) {
+                        safetyData.choices[0].message.content = cleanNiaResponse(safeContent);
                         return NextResponse.json(safetyData);
                     }
                 }
