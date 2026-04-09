@@ -106,8 +106,8 @@ function cleanNiaResponse(content: string | null): string | null {
             // Línea que es JSON de tool call o array JSON
             if ((t.startsWith('{') || t.startsWith('[')) &&
                 (t.includes('"name"') || t.includes('"arguments"') || t.includes('"id"'))) return false;
-            // Línea que es Python dict (single-quote keys)
-            if (t.startsWith('{') && t.includes("'uuid'")) return false;
+            // Línea que es Python dict (single-quote keys: 'id', 'uuid', 'nombre', etc.)
+            if (t.startsWith('{') && /'\w+':\s/.test(t)) return false;
             return true;
         })
         .join('\n');
@@ -200,7 +200,7 @@ export async function POST(req: Request) {
                 model: NIA_TOOL_MODEL,
                 messages: [{ role: "system", content: systemPrompt }, ...messages],
                 tools: NIA_TOOLS,
-                tool_choice: "required", // FORZAR uso de tools — evita que el modelo responda en texto
+                tool_choice: "auto", // auto: permite al modelo pedir info faltante sin forzar tool call
                 temperature: 0.1,
             })
         });
