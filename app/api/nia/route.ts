@@ -244,10 +244,36 @@ export async function POST(req: Request) {
         const doctorName = rawName.replace(/^(Dr\.|Dra\.|Dr |Dra )\s*/i, '').trim();
         const systemPrompt = getNiaSystemPrompt(doctorName);
 
+        // PRE-FETCH AGENDA: Si el último mensaje pregunta por la agenda de hoy/mañana,
+        // ejecutamos el tool directamente y lo inyectamos en el contexto antes de llamar al modelo.
+        // Esto evita que el modelo decida no llamar el tool y pida una fecha innecesariamente.
+        const lastUserMsg = (messages[messages.length - 1]?.content || '').toLowerCase();
+        const isAgendaQuery = /\b(agenda|citas de hoy|qu[eé] tengo hoy|pacientes de hoy|mi agenda|horario de hoy|agenda de hoy)\b/.test(lastUserMsg);
+        let preFetchedMessages = [...messages];
+
+        if (isAgendaQuery) {
+            console.log('NIA: Pre-fetching agenda for direct inject...');
+            const agendaResult = await executeNiaTool('get_agenda_by_date', {}, user.id);
+            preFetchedMessages = [
+                ...messages,
+                {
+                    role: 'assistant',
+                    content: null,
+                    tool_calls: [{ id: 'prefetch_agenda', type: 'function', function: { name: 'get_agenda_by_date', arguments: '{}' } }]
+                },
+                {
+                    role: 'tool',
+                    tool_call_id: 'prefetch_agenda',
+                    name: 'get_agenda_by_date',
+                    content: JSON.stringify(agendaResult)
+                }
+            ];
+        }
+
         // Initial AI Call with Tools
         console.log('NIA: Starting AI request...');
         let { ok: firstOk, data } = await callNiaAI({
-            messages: [{ role: 'system', content: systemPrompt }, ...messages],
+            messages: [{ role: 'system', content: systemPrompt }, ...preFetchedMessages],
             tools: NIA_TOOLS,
             tool_choice: 'auto',
             temperature: 0.1,
