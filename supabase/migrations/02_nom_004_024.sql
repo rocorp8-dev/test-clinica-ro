@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Migración 02: NOM-004-SSA3-2012 + NOM-024-SSA3-2010
--- Expediente Clínico Electrónico
+-- Expediente Clínico Electrónico (VERSIÓN IDEMPOTENTE CORREGIDA)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ── 1. Ampliar tabla patients (NOM-004 campos de identificación) ──────────
@@ -17,81 +17,56 @@ ALTER TABLE patients
   ADD COLUMN IF NOT EXISTS email        text,
   ADD COLUMN IF NOT EXISTS alergias     text,
   ADD COLUMN IF NOT EXISTS tipo_sangre  text CHECK (tipo_sangre IN ('A+','A-','B+','B-','AB+','AB-','O+','O-','desconocido')),
-  ADD COLUMN IF NOT EXISTS antecedentes text,  -- antecedentes heredofamiliares
-  ADD COLUMN IF NOT EXISTS padecimientos text, -- padecimientos crónicos
-  -- NOM-024: auditoría
+  ADD COLUMN IF NOT EXISTS antecedentes text,
+  ADD COLUMN IF NOT EXISTS padecimientos text,
   ADD COLUMN IF NOT EXISTS updated_at   timestamptz DEFAULT now(),
   ADD COLUMN IF NOT EXISTS updated_by   uuid REFERENCES auth.users;
 
 -- ── 2. Ampliar tabla appointments (NOM-004 nota de evolución) ────────────
 ALTER TABLE appointments
   ADD COLUMN IF NOT EXISTS diagnostico       text,
-  ADD COLUMN IF NOT EXISTS codigo_cie10      text,  -- ej: "J06.9"
+  ADD COLUMN IF NOT EXISTS codigo_cie10      text,
   ADD COLUMN IF NOT EXISTS tratamiento       text,
   ADD COLUMN IF NOT EXISTS pronostico        text CHECK (pronostico IN ('bueno','reservado','malo','no_determinado')),
   ADD COLUMN IF NOT EXISTS duracion_mins     integer DEFAULT 30,
   ADD COLUMN IF NOT EXISTS tipo_consulta     text DEFAULT 'primera_vez' CHECK (tipo_consulta IN ('primera_vez','subsecuente','urgencia','domiciliaria')),
-  -- NOM-024: auditoría
   ADD COLUMN IF NOT EXISTS updated_at        timestamptz DEFAULT now(),
   ADD COLUMN IF NOT EXISTS updated_by        uuid REFERENCES auth.users;
 
--- ── 3. Tabla medical_notes — Notas clínicas NOM-004 ──────────────────────
+-- ── 3. Ampliar / Crear Tabla medical_notes ──────────────────────────────
 CREATE TABLE IF NOT EXISTS medical_notes (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id       uuid REFERENCES patients(id) ON DELETE CASCADE NOT NULL,
   appointment_id   uuid REFERENCES appointments(id) ON DELETE SET NULL,
-  doctor_id        uuid REFERENCES auth.users NOT NULL,
-
-  -- Tipo de nota (NOM-004 §8)
-  tipo_nota        text NOT NULL DEFAULT 'evolucion' CHECK (tipo_nota IN (
-    'primera_vez',    -- Nota de primera vez
-    'evolucion',      -- Nota de evolución
-    'urgencias',      -- Nota de urgencias
-    'referencia',     -- Nota de referencia/traslado
-    'contrarreferencia',
-    'interconsulta',
-    'ingreso',        -- Nota de ingreso hospitalario
-    'egreso',         -- Nota de egreso
-    'quirurgica',     -- Nota preoperatoria/postoperatoria
-    'enfermeria'      -- Nota de enfermería
-  )),
-
-  -- SOAP (Subjetivo, Objetivo, Análisis, Plan) — estándar clínico
-  subjetivo        text,  -- Síntomas referidos por el paciente
-  objetivo         text,  -- Exploración física, signos vitales
-  analisis         text,  -- Diagnóstico / interpretación
-  plan             text,  -- Tratamiento, indicaciones, seguimiento
-
-  -- Diagnóstico formal
-  diagnostico      text,
-  codigo_cie10     text,  -- Código CIE-10
-
-  -- Signos vitales
-  tension_sistolica   integer,
-  tension_diastolica  integer,
-  frecuencia_cardiaca integer,
-  frecuencia_resp     integer,
-  temperatura         numeric(4,1),
-  peso_kg             numeric(5,2),
-  talla_cm            numeric(5,1),
-  spo2                integer,  -- saturación O2 %
-
-  -- NOM-004: firma del médico responsable
-  firmada          boolean DEFAULT false,
-  fecha_firma      timestamptz,
-  cedula_prof      text,  -- cédula profesional del médico
-
-  -- NOM-024: auditoría completa
-  created_at       timestamptz DEFAULT now(),
-  updated_at       timestamptz DEFAULT now(),
-  updated_by       uuid REFERENCES auth.users
+  doctor_id        uuid REFERENCES auth.users NOT NULL
 );
 
-ALTER TABLE medical_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE medical_notes
+  ADD COLUMN IF NOT EXISTS tipo_nota        text DEFAULT 'evolucion' CHECK (tipo_nota IN ('primera_vez','evolucion','urgencias','referencia','contrarreferencia','interconsulta','ingreso','egreso','quirurgica','enfermeria')),
+  ADD COLUMN IF NOT EXISTS subjetivo        text,
+  ADD COLUMN IF NOT EXISTS objetivo         text,
+  ADD COLUMN IF NOT EXISTS analisis         text,
+  ADD COLUMN IF NOT EXISTS plan             text,
+  ADD COLUMN IF NOT EXISTS diagnostico      text,
+  ADD COLUMN IF NOT EXISTS codigo_cie10     text,
+  ADD COLUMN IF NOT EXISTS tension_sistolica   integer,
+  ADD COLUMN IF NOT EXISTS tension_diastolica  integer,
+  ADD COLUMN IF NOT EXISTS frecuencia_cardiaca integer,
+  ADD COLUMN IF NOT EXISTS frecuencia_resp     integer,
+  ADD COLUMN IF NOT EXISTS temperatura         numeric(4,1),
+  ADD COLUMN IF NOT EXISTS peso_kg             numeric(5,2),
+  ADD COLUMN IF NOT EXISTS talla_cm            numeric(5,1),
+  ADD COLUMN IF NOT EXISTS spo2                integer,
+  ADD COLUMN IF NOT EXISTS firmada          boolean DEFAULT false,
+  ADD COLUMN IF NOT EXISTS fecha_firma      timestamptz,
+  ADD COLUMN IF NOT EXISTS cedula_prof      text,
+  ADD COLUMN IF NOT EXISTS created_at       timestamptz DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at       timestamptz DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_by       uuid REFERENCES auth.users;
 
-CREATE POLICY "Doctors manage their own notes"
-ON medical_notes FOR ALL
-USING (auth.uid() = doctor_id);
+ALTER TABLE medical_notes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Doctors manage their own notes" ON medical_notes;
+CREATE POLICY "Doctors manage their own notes" ON medical_notes FOR ALL USING (auth.uid() = doctor_id);
 
 -- ── 4. Tabla consents — Consentimiento informado NOM-004 §10 ─────────────
 CREATE TABLE IF NOT EXISTS consents (
@@ -107,30 +82,28 @@ CREATE TABLE IF NOT EXISTS consents (
 );
 
 ALTER TABLE consents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Doctors manage consents" ON consents;
+CREATE POLICY "Doctors manage consents" ON consents FOR ALL USING (auth.uid() = doctor_id);
 
-CREATE POLICY "Doctors manage consents"
-ON consents FOR ALL
-USING (auth.uid() = doctor_id);
-
--- ── 5. Tabla profiles — datos del médico (cédula profesional) ────────────
+-- ── 5. Ampliar Tabla profiles ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS profiles (
-  id              uuid PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
-  full_name       text,
-  email           text,
-  especialidad    text,
-  cedula_prof     text,  -- NOM-004: cédula profesional obligatoria
-  institucion     text,
-  telefono        text,
-  avatar_url      text,
-  created_at      timestamptz DEFAULT now(),
-  updated_at      timestamptz DEFAULT now()
+  id              uuid PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE
 );
 
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS full_name       text,
+  ADD COLUMN IF NOT EXISTS email           text,
+  ADD COLUMN IF NOT EXISTS especialidad    text,
+  ADD COLUMN IF NOT EXISTS cedula_prof     text,
+  ADD COLUMN IF NOT EXISTS institucion     text,
+  ADD COLUMN IF NOT EXISTS telefono        text,
+  ADD COLUMN IF NOT EXISTS avatar_url      text,
+  ADD COLUMN IF NOT EXISTS created_at      timestamptz DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at      timestamptz DEFAULT now();
 
-CREATE POLICY "Users manage own profile"
-ON profiles FOR ALL
-USING (auth.uid() = id);
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users manage own profile" ON profiles;
+CREATE POLICY "Users manage own profile" ON profiles FOR ALL USING (auth.uid() = id);
 
 -- Auto-crear profile al registrarse
 CREATE OR REPLACE FUNCTION public.handle_new_user()

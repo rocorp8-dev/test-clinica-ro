@@ -310,7 +310,7 @@ export default function DashboardPage() {
                     <span suppressHydrationWarning className="text-[10px] text-slate-400 uppercase tracking-tighter leading-none mb-1">
                       {new Date(app.fecha).toLocaleDateString('es-ES', { weekday: 'short' })}
                     </span>
-                    <span className="text-sm leading-none">
+                    <span suppressHydrationWarning className="text-sm leading-none">
                       {(() => {
                         const localD = new Date(app.fecha)
                         if (isNaN(localD.getTime())) return '--:--'

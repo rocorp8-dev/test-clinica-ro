@@ -268,7 +268,7 @@ export default function RecordsPage() {
                                                         <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">
                                                             {TIPO_NOTA[note.tipo_nota] || note.tipo_nota}
                                                         </span>
-                                                        <span className="text-xs text-slate-400 font-bold">
+                                                        <span suppressHydrationWarning className="text-xs text-slate-400 font-bold">
                                                             {new Date(note.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                         </span>
                                                     </div>
@@ -346,7 +346,7 @@ export default function RecordsPage() {
                                     <div className="space-y-2">
                                         {appointments.map(a => (
                                             <div key={a.id} className="flex items-center gap-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                                                <div className="text-center min-w-[3rem]">
+                                                <div suppressHydrationWarning className="text-center min-w-[3rem]">
                                                     <p className="text-xs font-black text-slate-600">{new Date(a.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</p>
                                                     <p className="text-[10px] text-slate-400">{new Date(a.fecha).getFullYear()}</p>
                                                 </div>

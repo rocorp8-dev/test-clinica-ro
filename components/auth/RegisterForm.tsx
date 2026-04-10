@@ -25,6 +25,7 @@ export default function RegisterForm() {
         setLoading(true)
 
         try {
+            const origin = typeof window !== 'undefined' ? window.location.origin : 'https://mdpulso.vercel.app'
             const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
@@ -32,7 +33,7 @@ export default function RegisterForm() {
                     data: {
                         full_name: fullName,
                     },
-                    emailRedirectTo: `${window.location.origin}/auth/callback`,
+                    emailRedirectTo: `${origin}/auth/callback`,
                 }
             })
 

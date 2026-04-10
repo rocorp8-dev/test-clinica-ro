@@ -308,7 +308,7 @@ export default function BillingPage() {
                                             </button>
                                             <div className="flex items-center gap-1">
                                                 <Calendar className="h-3 w-3 text-slate-400" />
-                                                <span className="text-[10px] text-slate-400">
+                                                <span suppressHydrationWarning className="text-[10px] text-slate-400">
                                                     {new Date(r.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
                                                 </span>
                                             </div>

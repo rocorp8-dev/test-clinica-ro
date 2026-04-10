@@ -186,9 +186,9 @@ function AppointmentsContent() {
                 <div className="xl:col-span-1 space-y-4 md:space-y-6">
                     <div className="rounded-2xl md:rounded-3xl bg-white p-4 md:p-6 shadow-sm border border-slate-100 h-fit">
                         <div className="flex items-center justify-between mb-4 md:mb-6">
-                            <p className="font-bold text-slate-900 leading-none text-sm md:text-base">
+                            <h2 suppressHydrationWarning className="text-xl md:text-2xl font-black text-slate-800 font-display">
                                 {currentMonth.toLocaleString('es-ES', { month: 'long', year: 'numeric' }).replace(/^\w/, (c) => c.toUpperCase())}
-                            </p>
+                            </h2>
                             <div className="flex gap-1">
                                 <button
                                     onClick={() => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() - 1)))}
@@ -261,9 +261,9 @@ function AppointmentsContent() {
                 {/* Timeline / List */}
                 <div className="xl:col-span-3 space-y-4">
                     <div className="flex items-center justify-between mb-2 md:mb-4">
-                        <h2 className="text-lg md:text-xl font-bold text-slate-900 italic">
+                        <h3 suppressHydrationWarning className="text-xl font-bold text-slate-900 font-display">
                             {selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                        </h2>
+                        </h3>
                         <span className="text-[10px] md:text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
                             {appointmentsForSelectedDate.length} Citas
                         </span>
@@ -279,7 +279,7 @@ function AppointmentsContent() {
                             className={`flex gap-3 md:gap-6 group ${app.id === highlightId ? 'ring-2 ring-emerald-500 ring-offset-4 rounded-[1.8rem]' : ''}`}
                         >
                             <div className="flex flex-col items-center gap-2 pt-2 min-w-[50px] md:min-w-[60px]">
-                                <span className={`text-[11px] md:text-sm font-bold ${app.estado === 'cancelada' ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
+                                <span suppressHydrationWarning className={`text-[11px] md:text-sm font-bold ${app.estado === 'cancelada' ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
                                     {(() => {
                                         // Extracción segura y manual de la hora para evitar Timezone Shifts
                                         const localD = new Date(app.fecha)

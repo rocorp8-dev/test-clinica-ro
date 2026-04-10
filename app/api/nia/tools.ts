@@ -267,7 +267,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                         objetivo: args.objetivo || '',
                         analisis: args.analisis || '',
                         plan: args.plan || '',
-                        cie10: args.cie10 || null,
+                        codigo_cie10: args.cie10 || null,
                         tipo_nota: 'evolucion'
                     }])
                     .select('id, created_at')
