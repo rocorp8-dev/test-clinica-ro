@@ -78,8 +78,9 @@ export default function AppointmentModal({ isOpen, onClose, onSuccess, appointme
         }
 
         // ── Validación temporal: sin fechas en el pasado ────────
-        const fullFecha = `${fechaVal}T${horaVal}`
-        const selectedDate = new Date(fullFecha)
+        // Construimos fecha local, y obtenemos ISO completo para Supabase (UTC nativo)
+        const selectedDate = new Date(`${fechaVal}T${horaVal}`)
+        const fullFecha = selectedDate.toISOString()
         const now = new Date()
         now.setSeconds(0, 0)
         if (selectedDate < now) {

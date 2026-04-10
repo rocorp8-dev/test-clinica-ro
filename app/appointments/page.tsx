@@ -282,13 +282,13 @@ function AppointmentsContent() {
                                 <span className={`text-[11px] md:text-sm font-bold ${app.estado === 'cancelada' ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
                                     {(() => {
                                         // Extracción segura y manual de la hora para evitar Timezone Shifts
-                                        const timeStr = app.fecha.split('T')[1];
-                                        if (!timeStr) return '--:--';
-                                        const [h, m] = timeStr.split(':');
-                                        let hours = parseInt(h);
-                                        const ampm = hours >= 12 ? 'p.m.' : 'a.m.';
-                                        hours = hours % 12 || 12;
-                                        return `${hours}:${m} ${ampm}`;
+                                        const localD = new Date(app.fecha)
+                                        if (isNaN(localD.getTime())) return '--:--'
+                                        let hours = localD.getHours()
+                                        let m = String(localD.getMinutes()).padStart(2, '0')
+                                        const ampm = hours >= 12 ? 'p.m.' : 'a.m.'
+                                        hours = hours % 12 || 12
+                                        return `${hours}:${m} ${ampm}`
                                     })()}
                                 </span>
                                 <div className="w-px flex-1 bg-slate-200 group-last:bg-transparent" />

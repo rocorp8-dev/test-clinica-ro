@@ -312,10 +312,10 @@ export default function DashboardPage() {
                     </span>
                     <span className="text-sm leading-none">
                       {(() => {
-                        const timeStr = app.fecha.split('T')[1]
-                        if (!timeStr) return '--:--'
-                        const [h, m] = timeStr.split(':')
-                        let hours = parseInt(h)
+                        const localD = new Date(app.fecha)
+                        if (isNaN(localD.getTime())) return '--:--'
+                        let hours = localD.getHours()
+                        let m = String(localD.getMinutes()).padStart(2, '0')
                         const ampm = hours >= 12 ? 'p.m.' : 'a.m.'
                         hours = hours % 12 || 12
                         return `${hours}:${m} ${ampm}`
