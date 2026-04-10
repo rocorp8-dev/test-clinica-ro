@@ -258,14 +258,17 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     console.log(`NIA AutoHealing Notes: "${patientParam}" → UUID ${patientId}`);
                 }
 
-                const soapContent = `S: ${args.subjetivo || '-'}\nO: ${args.objetivo || '-'}\nA: ${args.analisis || '-'}\nP: ${args.plan || '-'}\nCIE-10: ${args.cie10 || '-'}`;
-
                 const { data, error } = await supabase
                     .from('medical_notes')
                     .insert([{
                         patient_id: patientId,
                         doctor_id: userId,
-                        diagnostico: soapContent
+                        subjetivo: args.subjetivo || '',
+                        objetivo: args.objetivo || '',
+                        analisis: args.analisis || '',
+                        plan: args.plan || '',
+                        cie10: args.cie10 || null,
+                        tipo_nota: 'evolucion'
                     }])
                     .select('id, created_at')
                     .single();
