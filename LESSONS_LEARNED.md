@@ -1,32 +1,77 @@
-# Lecciones Aprendidas (Lessons Learned) - Proyecto Test-Clínica
+# Lessons Learned: Nia Clinical Assistant 🧠 (Versión Completa)
 
-Este documento captura los aprendizajes más importantes sobre el comportamiento de modelos pequeños (especialmente `llama3.1-8b`) y la integración con la base de datos Supabase/PostgreSQL. Sirve como referencia técnica para evitar regresiones y diseñar mejores prompts o defensas en futuras iteraciones.
+Este documento centraliza el conocimiento técnico y estratégico adquirido en el despliegue del SaaS clínico. Es la base para replicar este éxito en futuros proyectos.
+
+## 🛠️ Infraestructura y DevOps
+
+### 1. Migraciones SQL Idempotentes y Robustas
+- **El problema:** Las migraciones iniciales fallaban al intentar recrear tablas o políticas ya existentes (Error 42710).
+- **Lección:** Usa siempre bloques lógicos de "Auto-reparación":
+  - `ALTER TABLE ADD COLUMN IF NOT EXISTS ...`
+  - `DROP POLICY IF EXISTS ...`
+  - Este enfoque permite ejecutar el mismo script 100 veces sin romper nada.
+
+### 2. Gestión Remota vía Supabase Management API
+- **Herramienta:** El token `sbp_...` permite configurar la base de datos sin entrar a la consola web.
+- **Uso:** Sirve para apagar confirmaciones de correo (`mailer_autoconfirm`) o actualizar URLs de redirección (`site_url`) programáticamente. Es la clave para un despliegue "Hands-off" para el usuario.
+
+### 3. Autenticación y Redirecciones en Vercel
+- **Site URL:** Debe ser la URL de producción (`mdpulso.vercel.app`).
+- **Callback URLs:** Usa comodines (`*.vercel.app/**`) para que las ramas de desarrollo y previsualización no se rompan.
+- **localhost:** Si el correo de confirmación manda a localhost, es porque el `Site URL` en Supabase no se actualizó al de producción.
+
+---
+
+## 🤖 IA Crítica y Asistencial (Nia)
+
+### 4. Inteligencia de Resolución de Datos ("Auto-Healing")
+- **Concepto:** Nia debe ser capaz de "traducir" lo que dice el doctor (lenguaje humano) a lo que entiende la BD (UUIDs).
+- **Técnica:** Si el objeto de la herramienta recibe un Nombre, el código debe buscar automáticamente el ID en la tabla `patients`. Si no lo encuentra, debe pedir aclaración pero nunca intentar una inserción fallida.
+
+### 5. Prevención de Salidas "Crudas" (JSON Leak)
+- **Escenario:** A veces la IA devuelve el JSON de la herramienta en lugar del reporte clínico.
+- **Solución:** Implementar validaciones en el servidor que verifiquen si la respuesta de la IA contiene bloques de código JSON no procesados y, en su caso, forzar una re-sentencia o un formateo humanizado.
 
 ---
 
-## 1. Alucinaciones de Tool Chains por "tool_choice" rígido
-- **El Problema**: Originalmente, después de que el modelo ejecutara la herramienta `search_patients`, nuestro código backend forzaba `tool_choice: "none"`. Esto "esposaba" al agente y le prohibía, de manera forzosa, intentar usar una segunda herramienta (como `create_appointment`). Al verse acorralado e imposibilitado de usar herramientas, el agente se limitaba a *alucinar* una respuesta en texto diciendo "he agendado la cita".
-- **La Solución**: Cambiar el loop a `tool_choice: "auto"`. Esto le permite al agente decidir por sí mismo invocar una secuencia completa de herramientas antes de detener el ciclo y devolver un resultado.
-- **Lección**: Nunca asumas ciclos de vida o de interacciones de "una sola herramienta". Si el agente tiene que investigar (UUID) para luego operar (Agendar), el `tool_choice` siempre debe ser dinámico u `"auto"`.
+## ⚖️ Cumplimiento Médico (NOM-004-SSA3-2012)
 
-## 2. Inyecciones de Parámetros Inexistentes (Amnesia de Props)
-- **El Problema**: Los LLMs pequeños (como `llama3.1-8b`) no son consistentes con los esquemas JSON de las funciones. En lugar de mandar el parámetro `patient_id: "uuid-xxxx"`, se brincaban el paso por pereza. Al ver la orden del usuario "agenda a roberto cruz", inventaban sus propias llaves en el JSON, enviando algo como `"nombre": "roberto cruz"`, olvidando por completo el `patient_id`. Esto causaba una excepción `TypeError` ("undefined is not an object (evaluating 'replace')") rompiendo el flujo.
-- **La Solución (Auto-Healing)**: Se implementó un "escudo de sanación" dentro de la herramienta `create_appointment`:
-  ```javascript
-  let patientParam = args.patient_id || args.nombre || args.paciente || args.query;
-  ```
-- **Lección**: Los parámetros requeridos siempre deben tener validadores defensivos (fallbacks lógicos). Nunca confíes ciegamente en que el LLM respetará la estructura estricta impuesta por el schema; el auto-healing tras bastidores es obligatorio para modelos de menos de 70B de parámetros.
-
-## 3. Discrepancia del Operador LIKE en Timestamps (Postgres Error 42883)
-- **El Problema**: Al consultar la base de datos para prevenir *overlaps* o conflictos de citas en intervalos de 45 minutos usando `.like('fecha', "2026-04-11%...")`, Supabase arrojaba el error fatal: `operator does not exist: timestamp with time zone ~~ unknown`. PostgREST no soporta el operador `like` de strings nativamente sobre campos temporales sin casteos complejos.
-- **La Solución**: Convertir la búsqueda en un bloque de matemáticas de tiempo exactas empleando rangos `.gte` (00:00:00) y `.lte` (23:59:59).
-- **Lección**: Jamás busques patrones de texto en columnas Timestamp. La IA además generalizaba este error interno y lo comunicaba al médico cínicamente como: *"Se detectó un conflicto de horario"*. 
-
-## 4. Corrupción de Timestamps por Doble Offset
-- **El Problema**: Para garantizar que la base de datos estuviera usando la zona horaria CDMX, el backend agregaba artificialmente `-06:00` usando un Regex (`/\d$/.test`). El problema surgió porque a veces el LLM sí generaba correctamente la fecha final agregando explícitamente él mismo el offset `-06:00`. El backend le agregaba otro `-06:00` al final, mutando el string a `2026-04-11T11:00:00-06:00-06:00`. Esto en JS genera un `Invalid Date`.
-- **La Solución**: Antes de concatenar tiempos, validar de forma exhaustiva si el string ya contiene un carácter `+`, un caracter final `Z` o un guión de timezone más allá de la fecha central. Adicionalmente de usar un chequeo si el objecto Date es `NaN` para atraparlo explícitamente y mostrarlo al AI.
-- **Lección**: Los procesos de sanitización de inputs *siempre* deben ser idempotentes (poder pasarse múltiples veces por el mismo dato sin corromperlo). 
+### 6. Estructura de Datos Segregada
+- No guardes todo en una columna de "notas". La norma exige campos específicos:
+  - `subjetivo`, `objetivo`, `analisis`, `plan` (Formato SOAP).
+  - `cie10` (Código internacional de enfermedades).
+  - `vitals` (Tensión, Temperatura, Peso, Talla).
+- **Lección:** Segregar los datos desde el día 1 facilita auditorias y la generación de expedientes legales automáticos.
 
 ---
-**Conclusión de Sesión:**
-La delegación de "Sanitización y Búsqueda" sacada del razonamiento del modelo y movida hacia el "Auto-Healing" del Backend es el factor crucial para lograr que cualquier modelo Open Source compita con la estabilidad de GPT-4o.
+
+## 📈 Producto y Experiencia de Usuario (UX)
+
+### 7. Manejo de Fechas y Agenda
+- **Never trust a string:** No uses `.split('T')` para mostrar horas en la UI.
+- **Usa el objeto Date:** `new Date(string).toLocaleTimeString()` es la única forma de garantizar que el médico en CDMX y el de Tijuana vean la misma hora en su contexto local.
+
+### 8. El Modal de Edición (Cierre de Cobros)
+- Un error de $25 vs $250 es crítico. 
+- **Lección:** La facilidad para editar registros financieros pasados (con privilegios de doctor) aumenta la confianza del usuario en el sistema.
+
+---
+
+## 💡 Lecciones de Gestión de Proyecto con Antigravity
+
+### 9. Uso de MCP para Configuración Directa
+- **Aprendizaje:** Si el usuario no encuentra un menú en el Dashboard (ej. Auth de Supabase), Antigravity puede usar herramientas MCP (curl/API) para hacer el cambio directamente por él, eliminando la frustración técnica.
+
+### 10. Documentación Viva (Walkthroughs)
+- **Aprendizaje:** Actualizar el archivo de "Lessons Learned" al final de cada tarea importante asegura que el conocimiento no se pierda y permite que la IA y el usuario estén siempre en la misma página de "Mejores Prácticas".
+
+---
+
+> [!TIP]
+> **Checklist de Calidad para nuevos módulos:**
+> - [ ] ¿Manejo local de Timezones verificado?
+> - [ ] ¿Logs de errores de IA capturados en Supabase?
+> - [ ] ¿Campos obligatorios de la NOM-004 mapeados?
+> - [ ] ¿Confirmación de correo automática o manual (y Site URL actualizado)?
+
+¡Nia Clinical Assistant es ahora el estándar de oro para tus próximos proyectos SaaS! 🚀✨
