@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
+import EditBillingModal from '@/components/billing/EditBillingModal'
 
 const METHOD_ICONS: Record<string, any> = {
     efectivo: Banknote,
@@ -38,6 +39,7 @@ export default function BillingPage() {
     const [records, setRecords] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [period, setPeriod] = useState<TimePeriod>('month')
+    const [editingRecord, setEditingRecord] = useState<any | null>(null)
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
@@ -297,11 +299,19 @@ export default function BillingPage() {
                                     </div>
                                     <div className="text-right flex-shrink-0">
                                         <p className="text-lg font-black text-emerald-700">+${Number(r.amount).toFixed(2)}</p>
-                                        <div className="flex items-center gap-1 justify-end mt-0.5">
-                                            <Calendar className="h-3 w-3 text-slate-400" />
-                                            <span className="text-[10px] text-slate-400">
-                                                {new Date(r.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
-                                            </span>
+                                        <div className="flex items-center gap-2 justify-end mt-0.5">
+                                            <button 
+                                                onClick={() => setEditingRecord(r)}
+                                                className="text-[10px] uppercase font-black tracking-wider text-indigo-500 hover:text-indigo-700 transition-colors bg-indigo-50 px-2 py-0.5 rounded flex items-center gap-1"
+                                            >
+                                                Editar
+                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                <Calendar className="h-3 w-3 text-slate-400" />
+                                                <span className="text-[10px] text-slate-400">
+                                                    {new Date(r.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="flex-shrink-0 hidden sm:flex">
@@ -316,6 +326,17 @@ export default function BillingPage() {
                     </div>
                 )}
             </section>
+
+            {/* Edit Modal */}
+            <EditBillingModal 
+                isOpen={!!editingRecord}
+                onClose={() => setEditingRecord(null)}
+                record={editingRecord}
+                onSuccess={() => {
+                    setEditingRecord(null)
+                    loadBilling()
+                }}
+            />
         </div>
     )
 }
