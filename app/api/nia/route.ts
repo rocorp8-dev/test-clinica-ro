@@ -118,16 +118,24 @@ function cleanNiaResponse(content: string | null, calledTools: string[] = []): s
     
     if (isFakeConfirmation) return null;
 
-    // Encontrar el primer marcador del reporte estructurado
-    const markers = ['🚨', '📌', '📈', '💡'];
-    let firstIdx = content.length;
-    for (const marker of markers) {
-        const idx = content.indexOf(marker);
-        if (idx !== -1 && idx < firstIdx) firstIdx = idx;
-    }
+    // Los marcadores clínicos (🚨📌📈💡) SOLO son válidos en respuestas de expediente.
+    // Si el modelo los usa en agenda/notas, el cleaner los ignorará para no cortar contenido válido.
+    const hadPatientHistory = calledTools.includes('get_patient_complete_history');
+    let cleaned = content;
 
-    // Si hay contenido antes del primer marcador, descartarlo
-    const cleaned = firstIdx < content.length ? content.slice(firstIdx) : content;
+    if (hadPatientHistory) {
+        const markers = ['🚨', '📌', '📈', '💡'];
+        let firstIdx = content.length;
+        for (const marker of markers) {
+            const idx = content.indexOf(marker);
+            if (idx !== -1 && idx < firstIdx) firstIdx = idx;
+        }
+        // Solo cortar si el marcador aparece dentro del primer 40% del contenido
+        // (preamble real). Si está al final, es un añadido del modelo — no cortar.
+        if (firstIdx < content.length * 0.4) {
+            cleaned = content.slice(firstIdx);
+        }
+    }
 
     // Eliminar líneas que sean JSON crudo de tool call o Python dicts
     return cleaned
@@ -195,13 +203,13 @@ FECHA/HORA CDMX: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexic
    • Si no tiene el patient_id, primero usa search_patients.
 
 ━━━ FORMATO DE RESPUESTA ━━━
-Para expedientes/historiales, usa SIEMPRE este formato:
+SOLO para expedientes/historiales (get_patient_complete_history), usa este formato:
 🚨 ALERTAS DE SEGURIDAD — alergias, medicamentos de riesgo, condiciones críticas
 📌 SNAPSHOT CLÍNICO — nombre, diagnósticos activos, medicamentos, citas recientes
 📈 TENDENCIA — patrones en el historial
 💡 SUGERENCIA OPERATIVA — próximo paso clínico recomendado
 
-Para agenda/confirmaciones/notas: responde en texto natural claro y conciso.`;
+Para agenda, citas, confirmaciones, cancelaciones y notas: responde en texto natural claro y conciso SIN usar los marcadores 🚨📌📈💡.`;
 
 export async function POST(req: Request) {
     try {
