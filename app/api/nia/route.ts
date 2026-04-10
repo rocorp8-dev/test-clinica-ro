@@ -186,13 +186,19 @@ FECHA/HORA CDMX: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexic
 5. confirm_appointment(id) / cancel_appointment(id) — Control de estado.
 6. add_medical_note(...) — Registro normativo SOAP.
 
-━━━ FORMATO MANDATORIO PARA EXPEDIENTES ━━━
-Cuando uses 'get_patient_complete_history', tu respuesta DEBE tener este formato exacto:
+━━━ PROTOCOLO DE SEGURIDAD CRÍTICA ━━━
+• 🚨 ANTES de declarar que un paciente "No tiene alergias", debes buscar el campo "alergias" en el perfil o historial.
+• Si el campo dice "Ninguna" o está vacío, repórtalo como "Sin registros en sistema".
+• Si detectas CUALQUIER alergia (polen, penicilina, etc.), DEBES ponerla en la sección 🚨 ALERTAS DE SEGURIDAD. No la omitas nunca por brevedad.
+• La seguridad del paciente es tu prioridad #1. Un error aquí es inaceptable.
 
-🚨 ALERTAS DE SEGURIDAD — [Enlista alergias críticas o riesgos inmediatos]
-📌 SNAPSHOT CLÍNICO — [Nombre, edad, diagnósticos activos, medicación actual, resumen de últimas consultas]
-📈 TENDENCIA — [Evolución de síntomas o patrones detectados en el historial]
-💡 SUGERENCIA OPERATIVA — [Acción clínica concreta recomendada para hoy]
+━━━ FORMATO MANDATORIO PARA EXPEDIENTES ━━━
+Cuando uses 'get_patient_complete_history' o identifiques a un paciente, tu respuesta DEBE tener este formato exacto:
+
+🚨 ALERTAS DE SEGURIDAD — [Enlista alergias críticas, riesgos o "Sin registro detectado"]
+📌 SNAPSHOT CLÍNICO — [Nombre, edad, diagnósticos activos, medicación, resumen de flujo]
+📈 TENDENCIA — [Patrones detectados en el historial]
+💡 SUGERENCIA OPERATIVA — [Acción clínica inmediata]
 
 ━━━ OTROS FORMATOS ━━━
 Para agenda, citas y notas: Texto natural, ejecutivo, sin iconos, enfocado en confirmar la acción realizada.`;
@@ -364,6 +370,35 @@ export async function POST(req: Request) {
         }
 
         const calledTools = chatHistory.filter(m => m.role === 'tool').map(m => m.name);
+
+        // █ SAFETY GATE: ALERGIAS █
+        // Buscamos si hubo datos de alergias en los resultados de las tools que Nia haya omitido
+        let detectedAllergies: string[] = [];
+        chatHistory.forEach((m: any) => {
+            if (m.role === 'tool') {
+                try {
+                    const content = JSON.parse(m.content);
+                    // Caso 1: Array de pacientes (search_patients enriquecido)
+                    if (Array.isArray(content)) {
+                        content.forEach(p => { if (p.alergias) detectedAllergies.push(p.alergias); });
+                    }
+                    // Caso 2: Perfil individual (get_patient_complete_history)
+                    if (content.profile?.alergias) detectedAllergies.push(content.profile.alergias);
+                } catch (e) {}
+            }
+        });
+
+        if (detectedAllergies.length > 0) {
+            const hasMissingAllergyAlert = /\b(ninguna registrada|sin alergias|no tiene alergias|no se encontraron alergias|no se registran alergias)\b/i.test(finalText);
+            const mentionsAtLeastOneAllergy = detectedAllergies.some(a => finalText.toLowerCase().includes(a.toLowerCase()));
+
+            if (hasMissingAllergyAlert && !mentionsAtLeastOneAllergy) {
+                console.warn('NIA 🛑: SAFETY VIOLATION — Model missed allergies found in tools:', detectedAllergies);
+                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 
+                    `🚨 ALERTA DE SEGURIDAD CRÍTICA: He detectado que el paciente tiene registradas las siguientes ALERGIAS grave(s): ${detectedAllergies.join(', ')}.\n\nPor favor, Dr. ${doctorName}, tome las precauciones necesarias de inmediato.` 
+                }}]});
+            }
+        }
 
         if (data?.choices?.[0]?.message?.content) {
             const cleanedContent = cleanNiaResponse(data.choices[0].message.content, calledTools);

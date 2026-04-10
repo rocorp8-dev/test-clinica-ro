@@ -152,8 +152,16 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 });
 
                 if (error) throw error;
-                console.log(`NIA: search_patients "${args.query}" → ${data?.length} resultados`);
-                return data || [];
+                
+                // SAFETY ENRICHMENT: Aseguramos que las alergias siempre viajen con el reporte de búsqueda
+                // para que Nia las vea sin necesidad de llamar a otra tool.
+                const enrichedData = await Promise.all((data || []).map(async (p: any) => {
+                    const { data: pData } = await supabase.from('patients').select('alergias, padecimientos, tipo_sangre').eq('id', p.id).single();
+                    return { ...p, ...pData };
+                }));
+
+                console.log(`NIA: search_patients "${args.query}" → ${enrichedData.length} resultados (Enriquecidos con Alergias)`);
+                return enrichedData;
             }
 
             case 'get_patient_complete_history': {

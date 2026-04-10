@@ -117,6 +117,45 @@ CREATE TABLE IF NOT EXISTS public.payments (
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can see their own payments" ON public.payments;
 CREATE POLICY "Users can see their own payments" ON public.payments FOR ALL USING (auth.uid() = doctor_id);
+
+-- 7. NIA Safety Search RPC
+CREATE OR REPLACE FUNCTION public.search_patients_nia(
+    search_query text,
+    doctor_id uuid
+)
+RETURNS TABLE (
+    id uuid,
+    nombre text,
+    dni text,
+    alergias text,
+    padecimientos text,
+    tipo_sangre text
+) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        p.id,
+        p.nombre,
+        p.dni,
+        p.alergias,
+        p.padecimientos,
+        p.tipo_sangre
+    FROM public.patients p
+    WHERE p.user_id = doctor_id
+      AND (
+          p.nombre ILIKE search_query OR 
+          p.dni ILIKE search_query
+      )
+    ORDER BY p.nombre ASC
+    LIMIT 10;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.search_patients_nia(text, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.search_patients_nia(text, uuid) TO service_role;
 `
 
 async function applySchema() {
