@@ -180,7 +180,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 const [patientRes, appointmentsRes, notesRes] = await Promise.all([
                     supabase.from('patients').select('*').eq('id', patientId).single(),
                     supabase.from('appointments').select('id, fecha, motivo, estado').eq('patient_id', patientId).order('fecha', { ascending: false }).limit(20),
-                    supabase.from('medical_notes').select('id, created_at, subjetivo, objetivo, analisis, plan, cie10').eq('patient_id', patientId).order('created_at', { ascending: false }).limit(10)
+                    supabase.from('medical_notes').select('id, created_at, subjetivo, objetivo, analisis, plan, codigo_cie10').eq('patient_id', patientId).order('created_at', { ascending: false }).limit(10)
                 ]);
 
                 if (patientRes.error) throw patientRes.error;
