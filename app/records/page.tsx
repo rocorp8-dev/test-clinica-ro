@@ -157,7 +157,7 @@ export default function RecordsPage() {
                             <div className="hidden print:flex items-center gap-4 pb-6 border-b-2 border-slate-200">
                                 <div>
                                     <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Expediente Clínico Electrónico</p>
-                                    <p className="text-xs text-slate-400">NOM-004-SSA3-2012 · NOM-024-SSA3-2010 · Generado: {new Date().toLocaleDateString('es-MX')}</p>
+                                    <p suppressHydrationWarning className="text-xs text-slate-400">NOM-004-SSA3-2012 · NOM-024-SSA3-2010 · Generado: {new Date().toLocaleDateString('es-MX')}</p>
                                 </div>
                             </div>
 
@@ -365,7 +365,7 @@ export default function RecordsPage() {
 
                             {/* Footer legal — print only */}
                             <div className="hidden print:block pt-8 border-t border-slate-200 text-center">
-                                <p className="text-[10px] text-slate-400">Expediente generado por MdPulso · Documento confidencial sujeto a NOM-004-SSA3-2012 · {new Date().toLocaleString('es-MX')}</p>
+                                <p suppressHydrationWarning className="text-[10px] text-slate-400">Expediente generado por MdPulso · Documento confidencial sujeto a NOM-004-SSA3-2012 · {new Date().toLocaleString('es-MX')}</p>
                             </div>
                         </div>
                     )}

@@ -307,7 +307,7 @@ export default function DashboardPage() {
               <div key={app.id} className="group relative flex flex-col sm:flex-row sm:items-center justify-between p-4 md:p-5 rounded-3xl bg-slate-50/50 hover:bg-white transition-all border border-transparent hover:border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 gap-4 active:scale-[0.98] cursor-pointer">
                 <div className="flex items-center gap-4">
                   <div className="flex h-14 w-14 flex-shrink-0 flex-col items-center justify-center rounded-2xl bg-white shadow-sm font-bold text-slate-900 border border-slate-100">
-                    <span className="text-[10px] text-slate-400 uppercase tracking-tighter leading-none mb-1">
+                    <span suppressHydrationWarning className="text-[10px] text-slate-400 uppercase tracking-tighter leading-none mb-1">
                       {new Date(app.fecha).toLocaleDateString('es-ES', { weekday: 'short' })}
                     </span>
                     <span className="text-sm leading-none">
