@@ -73,7 +73,7 @@ export default function SettingsPage() {
                     <div className="rounded-[2.5rem] bg-emerald-50 p-8 border border-emerald-100 text-center">
                         <p className="text-sm text-emerald-800 font-bold mb-4">¿Necesitas ayuda técnica?</p>
                         <button
-                            onClick={() => toast.success('Soporte MdPulso', { description: 'Un agente se pondrá en contacto contigo en breve.' })}
+                            onClick={() => window.location.href = 'mailto:despacho9@gmail.com?subject=Soporte%20MdPulso'}
                             className="w-full py-3 bg-emerald-600 text-white rounded-2xl text-xs font-bold shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-95"
                         >
                             Contactar Soporte 24/7
