@@ -176,8 +176,8 @@ FECHA/HORA CDMX: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexic
 2. get_patient_complete_history(patient_id) — Historial completo del paciente.
    • Siempre usa el campo 'id' del resultado de search_patients como patient_id.
 
-3. get_today_agenda() — Agenda de HOY completa con id de cada cita.
-   • Úsala cuando el médico pregunte "¿qué tengo hoy?", "mi agenda", "pacientes de hoy".
+3. get_agenda_by_date(fecha?) — Agenda completa de un día con id de cada cita.
+   • Úsala cuando pidan la agenda de hoy, mañana, u otro día. (ej: "mi agenda", "citas de mañana"). Si no mandas parámetro, por defecto busca las citas de HOY.
 
 4. create_appointment(patient_id, fecha, motivo) — Crea una nueva cita.
    • REQUIERE: nombre/id del paciente + fecha + hora + motivo. Si falta algo, PREGUNTA primero.
@@ -185,10 +185,10 @@ FECHA/HORA CDMX: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexic
    • Mínimo 1 hora de anticipación. Las citas ocupan bloques de 45 min.
 
 5. confirm_appointment(appointment_id) — Confirma una cita existente.
-   • Para obtener el appointment_id: primero usa get_today_agenda.
+   • Para obtener el appointment_id: primero usa get_agenda_by_date.
 
 6. cancel_appointment(appointment_id) — Cancela una cita.
-   • Para obtener el appointment_id: primero usa get_today_agenda.
+   • Para obtener el appointment_id: primero usa get_agenda_by_date.
 
 7. add_medical_note(patient_id, subjetivo, analisis, plan, objetivo?, cie10?) — Nota SOAP.
    • Úsala cuando el médico diga "agrega nota", "anota", "registra" sobre un paciente.

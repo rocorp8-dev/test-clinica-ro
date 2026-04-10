@@ -57,9 +57,14 @@ export const NIA_TOOLS = [
     {
         type: "function",
         function: {
-            name: "get_today_agenda",
-            description: "Retorna la agenda completa de HOY: todas las citas del doctor con nombre del paciente, hora y estado.",
-            parameters: { type: "object", properties: {} }
+            name: "get_agenda_by_date",
+            description: "Retorna la agenda completa de un día específico. Por defecto usa HOY. Úsala para 'agenda de mañana', 'citas de hoy', etc.",
+            parameters: {
+                type: "object",
+                properties: {
+                    fecha: { type: "string", description: "Opcional. Fecha en formato YYYY-MM-DD. Si no se indica, usa la fecha de hoy." }
+                }
+            }
         }
     },
     {
@@ -152,8 +157,25 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'get_patient_complete_history': {
-                const patientId = args.patient_id || args.uuid || args.id;
-                if (!patientId) return { error: 'Falta patient_id. Usa el campo id de search_patients.' };
+                // AUTO-HEALING: acepta nombre además de UUID
+                let patientParam = args.patient_id || args.uuid || args.id || args.query;
+                if (!patientParam) return { error: 'Falta patient_id o nombre.' };
+
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(patientParam));
+                let patientId = patientParam;
+
+                if (!isUuid) {
+                    const cleanQuery = String(patientParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
+                    const { data: found, error: sErr } = await supabase.rpc('search_patients_nia', {
+                        search_query: `%${cleanQuery}%`,
+                        doctor_id: userId
+                    });
+                    if (sErr || !found?.length) {
+                        return { error: `ERROR_PACIENTE_NO_ENCONTRADO: "${patientParam}" no está registrado en tu sistema.` };
+                    }
+                    patientId = found[0].id;
+                    console.log(`NIA AutoHealing History: "${patientParam}" → UUID ${patientId}`);
+                }
 
                 const [patientRes, appointmentsRes, notesRes] = await Promise.all([
                     supabase.from('patients').select('*').eq('id', patientId).single(),
@@ -169,10 +191,10 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 };
             }
 
-            case 'get_today_agenda': {
+            case 'get_agenda_by_date': {
                 // fecha es timestamptz — .like() NO funciona en PostgREST con ese tipo.
                 // Usamos rango UTC que cubre el día completo en CDMX.
-                const { start, end, localDate } = cdmxDayRangeUTC();
+                const { start, end, localDate } = cdmxDayRangeUTC(args.fecha || undefined);
 
                 const { data, error } = await supabase
                     .from('appointments')
@@ -183,7 +205,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     .order('fecha', { ascending: true });
 
                 if (error) {
-                    console.error('NIA get_today_agenda DB error:', error);
+                    console.error('NIA get_agenda_by_date DB error:', error);
                     throw error;
                 }
                 return { date: localDate, total: data?.length || 0, appointments: data || [] };
@@ -216,8 +238,25 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'add_medical_note': {
-                const patientId = args.patient_id || args.uuid || args.id;
-                if (!patientId) return { error: 'Falta patient_id.' };
+                // AUTO-HEALING
+                let patientParam = args.patient_id || args.uuid || args.id || args.nombre || args.query;
+                if (!patientParam) return { error: 'Falta patient_id o nombre.' };
+
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(patientParam));
+                let patientId = patientParam;
+
+                if (!isUuid) {
+                    const cleanQuery = String(patientParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
+                    const { data: found, error: sErr } = await supabase.rpc('search_patients_nia', {
+                        search_query: `%${cleanQuery}%`,
+                        doctor_id: userId
+                    });
+                    if (sErr || !found?.length) {
+                        return { error: `ERROR_PACIENTE_NO_ENCONTRADO: No se encontró al paciente "${patientParam}".` };
+                    }
+                    patientId = found[0].id;
+                    console.log(`NIA AutoHealing Notes: "${patientParam}" → UUID ${patientId}`);
+                }
 
                 const { data, error } = await supabase
                     .from('medical_notes')
