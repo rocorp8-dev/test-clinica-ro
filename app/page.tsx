@@ -399,13 +399,19 @@ export default function DashboardPage() {
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Novedades</h3>
             </div>
             <div className="space-y-4">
-              <div className="group cursor-pointer">
-                <p className="text-xs md:text-sm font-bold group-hover:text-emerald-600 transition-colors">v2.4 Lanzada oficialmente</p>
-                <p className="text-[10px] md:text-xs text-slate-400 mt-1">Nuevas recetas digitales integradas.</p>
+              <div className="group cursor-default">
+                <p className="text-xs md:text-sm font-bold text-slate-700 underline decoration-emerald-500/30 decoration-2 underline-offset-4 flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Próximamente: v2.4
+                </p>
+                <p className="text-[10px] md:text-xs text-slate-400 mt-2 ml-3.5 italic">Nuevas recetas digitales integradas.</p>
               </div>
-              <div className="group cursor-pointer">
-                <p className="text-xs md:text-sm font-bold group-hover:text-emerald-600 transition-colors">Integración con Farmacias</p>
-                <p className="text-[10px] md:text-xs text-slate-400 mt-1">Ya puedes enviar pedidos directos.</p>
+              <div className="group cursor-default">
+                <p className="text-xs md:text-sm font-bold text-slate-700 underline decoration-emerald-500/30 decoration-2 underline-offset-4 flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Integración con Farmacias
+                </p>
+                <p className="text-[10px] md:text-xs text-slate-400 mt-2 ml-3.5 italic">Pedidos directos próximamente.</p>
               </div>
             </div>
           </section>
