@@ -58,11 +58,11 @@ export const NIA_TOOLS = [
         type: "function",
         function: {
             name: "get_agenda_by_date",
-            description: "Retorna la agenda completa de un día específico. Por defecto usa HOY. Úsala para 'agenda de mañana', 'citas de hoy', etc.",
+            description: "Retorna la agenda del doctor. LLAMA SIEMPRE SIN PARÁMETROS para ver la agenda de HOY. El parámetro 'fecha' es OPCIONAL y solo se usa si el médico pide un día diferente (mañana, lunes, etc.).",
             parameters: {
                 type: "object",
                 properties: {
-                    fecha: { type: "string", description: "Opcional. Fecha en formato YYYY-MM-DD. Si no se indica, usa la fecha de hoy." }
+                    fecha: { type: "string", description: "OPCIONAL. Fecha en formato YYYY-MM-DD. OMITE este parámetro si el médico pregunta por la agenda de HOY." }
                 }
             }
         }

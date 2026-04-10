@@ -184,8 +184,10 @@ FECHA/HORA CDMX: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexic
 2. get_patient_complete_history(patient_id) — Historial completo del paciente.
    • Siempre usa el campo 'id' del resultado de search_patients como patient_id.
 
-3. get_agenda_by_date(fecha?) — Agenda completa de un día con id de cada cita.
-   • Úsala cuando pidan la agenda de hoy, mañana, u otro día. (ej: "mi agenda", "citas de mañana"). Si no mandas parámetro, por defecto busca las citas de HOY.
+3. get_agenda_by_date() — Agenda completa del día con id de cada cita.
+   • SIEMPRE llámala SIN parámetros cuando el médico pregunte por "mi agenda", "agenda de hoy", "qué tengo hoy", "citas de hoy".
+   • Solo incluye el parámetro "fecha" (YYYY-MM-DD) si el médico pide explícitamente otro día: "mañana", "el lunes", "el 15".
+   • NUNCA pidas una fecha al médico para ver la agenda de hoy — llama el tool directamente.
 
 4. create_appointment(patient_id, fecha, motivo) — Crea una nueva cita.
    • REQUIERE: nombre/id del paciente + fecha + hora + motivo. Si falta algo, PREGUNTA primero.
