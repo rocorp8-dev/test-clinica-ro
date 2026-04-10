@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { NIA_TOOLS, executeNiaTool } from './tools';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { validateClinicalSafety } from '@/lib/clinicalSafety';
 
 // Vercel: aumentar timeout para tool call loops (default 10s es insuficiente)
 export const maxDuration = 30;
@@ -369,35 +370,24 @@ export async function POST(req: Request) {
             }
         }
 
+        // █ SAFETY GATE: VALIDACIÓN CLÍNICA CENTRALIZADA █
         const calledTools = chatHistory.filter(m => m.role === 'tool').map(m => m.name);
-
-        // █ SAFETY GATE: ALERGIAS █
-        // Buscamos si hubo datos de alergias en los resultados de las tools que Nia haya omitido
-        let detectedAllergies: string[] = [];
-        chatHistory.forEach((m: any) => {
-            if (m.role === 'tool') {
+        const clinicalData = chatHistory
+            .filter(m => m.role === 'tool')
+            .map(m => {
                 try {
                     const content = JSON.parse(m.content);
-                    // Caso 1: Array de pacientes (search_patients enriquecido)
-                    if (Array.isArray(content)) {
-                        content.forEach(p => { if (p.alergias) detectedAllergies.push(p.alergias); });
-                    }
-                    // Caso 2: Perfil individual (get_patient_complete_history)
-                    if (content.profile?.alergias) detectedAllergies.push(content.profile.alergias);
-                } catch (e) {}
-            }
-        });
+                    if (Array.isArray(content)) return content; // search_patients
+                    if (content.profile) return [content.profile]; // complete_history
+                    return [];
+                } catch { return []; }
+            })
+            .flat();
 
-        if (detectedAllergies.length > 0) {
-            const hasMissingAllergyAlert = /\b(ninguna registrada|sin alergias|no tiene alergias|no se encontraron alergias|no se registran alergias)\b/i.test(finalText);
-            const mentionsAtLeastOneAllergy = detectedAllergies.some(a => finalText.toLowerCase().includes(a.toLowerCase()));
-
-            if (hasMissingAllergyAlert && !mentionsAtLeastOneAllergy) {
-                console.warn('NIA 🛑: SAFETY VIOLATION — Model missed allergies found in tools:', detectedAllergies);
-                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 
-                    `🚨 ALERTA DE SEGURIDAD CRÍTICA: He detectado que el paciente tiene registradas las siguientes ALERGIAS grave(s): ${detectedAllergies.join(', ')}.\n\nPor favor, Dr. ${doctorName}, tome las precauciones necesarias de inmediato.` 
-                }}]});
-            }
+        const safety = validateClinicalSafety(clinicalData, finalText, doctorName);
+        if (!safety.isValid && safety.suggestedWarning) {
+            console.warn('NIA 🛑: SAFETY VIOLATION detected by engine:', safety.missingInResponse);
+            return NextResponse.json({ choices: [{ message: { role: 'assistant', content: safety.suggestedWarning }}]});
         }
 
         if (data?.choices?.[0]?.message?.content) {

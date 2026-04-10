@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { validateClinicalSafety } from '@/lib/clinicalSafety';
 
 export async function POST(req: Request) {
     try {
@@ -118,6 +119,15 @@ ${JSON.stringify(medicalData)}
         try {
             const content = data?.choices?.[0]?.message?.content;
             snapshotResult = typeof content === 'string' ? JSON.parse(content) : content;
+
+            // █ SAFETY CROSS-CHECK █
+            // Validamos que el JSON generado no ignore riesgos reales
+            const safety = validateClinicalSafety([patient], JSON.stringify(snapshotResult), user.user_metadata?.full_name || 'Colega');
+            if (!safety.isValid && safety.suggestedWarning) {
+                console.warn('NIA Snapshot 🛑: Safety Engine detected omission. Overriding notes...');
+                snapshotResult.safetyAlerts.hasAlerts = true;
+                snapshotResult.safetyAlerts.notes = `🚨 REVISIÓN MANDATORIA: ${safety.detectedAlerts.join(', ')}`;
+            }
         } catch (e) {
             console.error('Failed to parse NIA snapshot JSON:', e);
             return NextResponse.json({ error: 'Invalid snapshot format' }, { status: 500 });

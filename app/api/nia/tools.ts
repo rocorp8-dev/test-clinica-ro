@@ -206,7 +206,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
 
                 const { data, error } = await supabase
                     .from('appointments')
-                    .select('id, fecha, motivo, estado, patients(nombre, telefono)')
+                    .select('id, fecha, motivo, estado, patients(nombre, telefono, alergias, padecimientos)')
                     .eq('doctor_id', userId)
                     .gte('fecha', start)
                     .lte('fecha', end)
@@ -225,7 +225,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     .update({ estado: 'confirmada' })
                     .eq('id', args.appointment_id)
                     .eq('doctor_id', userId)
-                    .select('id, fecha, motivo, patients(nombre)')
+                    .select('id, fecha, motivo, patients(nombre, alergias, padecimientos)')
                     .single();
 
                 if (error) throw error;
@@ -238,7 +238,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     .update({ estado: 'cancelada' })
                     .eq('id', args.appointment_id)
                     .eq('doctor_id', userId)
-                    .select('id, fecha, motivo, patients(nombre)')
+                    .select('id, fecha, motivo, patients(nombre, alergias, padecimientos)')
                     .single();
 
                 if (error) throw error;
@@ -278,7 +278,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                         codigo_cie10: args.cie10 || null,
                         tipo_nota: 'evolucion'
                     }])
-                    .select('id, created_at')
+                    .select('id, created_at, patients(nombre, alergias, padecimientos)')
                     .single();
 
                 if (error) throw error;
@@ -351,7 +351,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 const { data, error } = await supabase
                     .from('appointments')
                     .insert([{ patient_id: args.patient_id, doctor_id: userId, fecha: dateStr, motivo: args.motivo, estado: 'pendiente' }])
-                    .select()
+                    .select('id, fecha, motivo, patients(nombre, alergias, padecimientos)')
                     .single();
 
                 if (error) throw error;
