@@ -123,9 +123,8 @@ export default function NiaAssistant() {
     // Renderiza el contenido del mensaje con formato mejorado
     const renderContent = (content: string) => {
         return content.split('\n').map((line, i) => {
-            // Encabezados de sección con emojis o palabras clave
-            const isHeader = /^(🚨|📌|📈|💡|EXAMEN DE SEGURIDAD|RESUMEN DEL CASO|TENDENCIAS|SUGERENCIA|ALERTAS DE SEGURIDAD|RIESGOS):/.test(line);
-            if (isHeader) {
+            // Encabezados de sección con emojis
+            if (/^(🚨|📌|📈|💡)/.test(line)) {
                 return (
                     <p key={i} className="font-black text-emerald-400 mt-4 mb-1.5 first:mt-0 text-[11px] uppercase tracking-wider">
                         {line}
