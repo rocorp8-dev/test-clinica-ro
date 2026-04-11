@@ -130,6 +130,56 @@ export const NIA_TOOLS = [
                 required: ["patient_id", "subjetivo", "analisis", "plan"]
             }
         }
+    },
+    {
+        type: "function",
+        function: {
+            name: "register_patient",
+            description: "Registra un nuevo paciente en el sistema.",
+            parameters: {
+                type: "object",
+                properties: {
+                    nombre: { type: "string" },
+                    telefono: { type: "string", description: "Opcional." },
+                    email: { type: "string", description: "Opcional." },
+                    dni: { type: "string", description: "Opcional." },
+                    alergias: { type: "string", description: "Opcional. Muy importante." }
+                },
+                required: ["nombre"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "register_payment",
+            description: "Registra un cobro por una consulta y marca la cita como completada.",
+            parameters: {
+                type: "object",
+                properties: {
+                    appointment_id: { type: "string", description: "UUID de la cita a la que pertenece el cobro." },
+                    amount: { type: "number", description: "Monto en MXN." },
+                    method: { type: "string", enum: ["efectivo", "tarjeta", "transferencia", "otro"], default: "efectivo" },
+                    notes: { type: "string", description: "Notas adicionales (opcional)." }
+                },
+                required: ["appointment_id", "amount"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "reschedule_appointment",
+            description: "Cambia la fecha de una cita existente (Re-agendar).",
+            parameters: {
+                type: "object",
+                properties: {
+                    appointment_id: { type: "string", description: "UUID de la cita a mover." },
+                    nueva_fecha: { type: "string", description: "Nueva fecha ISO 8601 (ej: 2026-04-15T10:00:00-06:00)." }
+                },
+                required: ["appointment_id", "nueva_fecha"]
+            }
+        }
     }
 ];
 
@@ -356,6 +406,91 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
 
                 if (error) throw error;
                 return { success: true, appointment: data };
+            }
+
+            case 'register_patient': {
+                const { data, error } = await supabase
+                    .from('patients')
+                    .insert([{ 
+                        ...args, 
+                        doctor_id: userId 
+                    }])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                return { success: true, patient: data };
+            }
+
+            case 'register_payment': {
+                // 1. Obtener datos de la cita
+                const { data: appt, error: aErr } = await supabase
+                    .from('appointments')
+                    .select('patient_id, doctor_id')
+                    .eq('id', args.appointment_id)
+                    .single();
+                
+                if (aErr || !appt) throw new Error('Cita no encontrada');
+
+                // 2. Insertar cobro
+                const { error: pErr } = await supabase
+                    .from('billing')
+                    .insert([{
+                        user_id: userId,
+                        appointment_id: args.appointment_id,
+                        patient_id: appt.patient_id,
+                        amount: args.amount,
+                        payment_method: args.method || 'efectivo',
+                        notes: args.notes
+                    }]);
+                
+                if (pErr) throw pErr;
+
+                // 3. Marcar cita como completada
+                await supabase
+                    .from('appointments')
+                    .update({ estado: 'completada' })
+                    .eq('id', args.appointment_id);
+
+                return { success: true, amount: args.amount, status: 'pagado y completado' };
+            }
+
+            case 'reschedule_appointment': {
+                // Similar a create_appointment, validamos disponibilidad
+                let dateStr = args.nueva_fecha.trim();
+                const hasOffset = dateStr.includes('+') || (dateStr.includes('-') && dateStr.lastIndexOf('-') > 10) || dateStr.endsWith('Z');
+                if (!hasOffset && /\d$/.test(dateStr)) dateStr += '-06:00';
+
+                const requestDate = new Date(dateStr);
+                const dayStr = dateStr.split('T')[0];
+                const { start: dayStart, end: dayEnd } = cdmxDayRangeUTC(dayStr);
+                
+                const { data: existing } = await supabase
+                    .from('appointments')
+                    .select('id, fecha, patients(nombre)')
+                    .eq('doctor_id', userId)
+                    .gte('fecha', dayStart)
+                    .lte('fecha', dayEnd)
+                    .neq('id', args.appointment_id) // Excluir la cita actual
+                    .neq('estado', 'cancelada');
+
+                const requestedMs = requestDate.getTime();
+                for (const appt of existing || []) {
+                    const apptMs = new Date(appt.fecha).getTime();
+                    if (!isNaN(apptMs) && Math.abs(requestedMs - apptMs) < 45 * 60 * 1000) {
+                        return { error: `ERROR_CONFLICTO_HORARIO: El nuevo horario interfiere con otra cita.` };
+                    }
+                }
+
+                const { data, error } = await supabase
+                    .from('appointments')
+                    .update({ fecha: dateStr })
+                    .eq('id', args.appointment_id)
+                    .select('id, fecha, patients(nombre)')
+                    .single();
+
+                if (error) throw error;
+                return { success: true, new_date: data.fecha, patient: (data.patients as any)?.nombre };
             }
 
             default:
