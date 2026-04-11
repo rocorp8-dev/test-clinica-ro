@@ -124,7 +124,7 @@ function cleanNiaResponse(content: string | null, calledTools: string[] = []): s
     let cleaned = content;
 
     if (hadPatientHistory) {
-        const markers = ['📌', '📈', '💡'];
+        const markers = ['🚨', '📌', '📈', '💡'];
         let firstIdx = -1;
         for (const marker of markers) {
             const idx = content.indexOf(marker);
