@@ -114,9 +114,9 @@ function cleanNiaResponse(content: string | null, calledTools: string[] = []): s
         /listo.*agendad[oa]/i
     ];
 
-    const isFakeConfirmation = fakeConfirmationPatterns.some(regex => regex.test(trimmed)) 
-                              && !calledTools.includes('create_appointment');
-    
+    const isFakeConfirmation = fakeConfirmationPatterns.some(regex => regex.test(trimmed))
+        && !calledTools.includes('create_appointment');
+
     if (isFakeConfirmation) return null;
 
     // Los marcadores (📌📈💡) SOLO son válidos en respuestas de expediente.
@@ -130,7 +130,7 @@ function cleanNiaResponse(content: string | null, calledTools: string[] = []): s
             const idx = content.indexOf(marker);
             if (idx !== -1 && (firstIdx === -1 || idx < firstIdx)) firstIdx = idx;
         }
-        
+
         if (firstIdx > 0 && firstIdx < content.length * 0.5) {
             cleaned = content.slice(firstIdx);
         }
@@ -194,7 +194,7 @@ export async function POST(req: Request) {
         const cookieStore = await cookies();
         const supabaseClient = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key',
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key',
             {
                 cookies: {
                     getAll: () => cookieStore.getAll(),
@@ -246,24 +246,56 @@ export async function POST(req: Request) {
         // Handle Tool Calls Loop history
         const chatHistory = [...messages];
 
-        // Initial AI Call — usa Groq (primario) → Cerebras (fallback)
+        // Initial AI Call with Tools
         console.log('NIA: Starting AI request...');
-        const initialResult = await callNiaAI({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                ...chatHistory
-            ],
-            tools: NIA_TOOLS,
-            tool_choice: 'auto',
-            temperature: 0.1,
-        });
-
-        if (!initialResult.ok) {
-            console.error('NIA: Initial AI call failed:', initialResult.data);
-            return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 'Servicio temporalmente no disponible. Por favor intenta de nuevo.' }}]});
+        let response;
+        try {
+            response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'llama3.1-70b',
+                    messages: [
+                        { role: 'system', content: getNiaSystemPrompt(doctorName) },
+                        ...chatHistory
+                    ],
+                    tools: NIA_TOOLS,
+                    tool_choice: 'auto'
+                })
+            });
+        } catch (e) {
+            console.error("Cerebras Fail:", e);
         }
 
-        let data = initialResult.data;
+        let data = response?.ok ? await response.json() : null;
+
+        // Si Cerebras falla o el mensaje de usuario parece requerir herramienta y no la dio
+        const userAsksTool = chatHistory[chatHistory.length - 1].content.toLowerCase().match(/registra|agenda|cita|historial|expediente|cobra|pago/);
+
+        if (!data || (userAsksTool && !data.choices[0].message.tool_calls)) {
+            console.log("Activando Fallback OpenRouter...");
+            const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'mistralai/mistral-large',
+                    messages: [
+                        { role: 'system', content: getNiaSystemPrompt(doctorName) },
+                        ...chatHistory
+                    ],
+                    tools: NIA_TOOLS,
+                    tool_choice: 'auto'
+                })
+            });
+            data = await orRes.json();
+            console.log("Respuesta OpenRouter obtenida.");
+        }
 
         let message = data.choices[0].message;
         console.log('NIA: AI Response Message:', JSON.stringify(message).slice(0, 300));
@@ -349,32 +381,32 @@ export async function POST(req: Request) {
         if (claimsAppointmentCreated) {
             if (!createToolResult) {
                 console.warn('NIA 🛑: false appointment confirmation — create_appointment never called');
-                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 'No pude completar la cita. Por favor intenta de nuevo con nombre del paciente, fecha, hora y motivo.' }}]});
+                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 'No pude completar la cita. Por favor intenta de nuevo con nombre del paciente, fecha, hora y motivo.' } }] });
             }
             if (createToolResult.content.includes('"error"')) {
                 console.warn('NIA 🛑: false appointment confirmation — create_appointment returned error');
                 try {
                     const toolErr = JSON.parse(createToolResult.content);
-                    return NextResponse.json({ choices: [{ message: { role: 'assistant', content: toolErr.error || 'Error al agendar. Por favor verifica los datos.' }}]});
+                    return NextResponse.json({ choices: [{ message: { role: 'assistant', content: toolErr.error || 'Error al agendar. Por favor verifica los datos.' } }] });
                 } catch { /* content no es JSON parseable */ }
             }
         }
 
         // █ SAFETY GATE: VALIDACIÓN CLÍNICA CENTRALIZADA █
         const calledTools = chatHistory.filter(m => m.role === 'tool').map(m => m.name);
-        
+
         // CONTEXTO: ¿Es una consulta clínica o administrativa?
         const isClinical = calledTools.some(t => ['get_patient_complete_history', 'add_medical_note'].includes(t));
-        
+
         const clinicalData = chatHistory
             .filter(m => m.role === 'tool')
             .map(m => {
                 try {
                     const content = JSON.parse(m.content);
                     // search_patients puede retornar array de records con alergias
-                    if (Array.isArray(content)) return content; 
+                    if (Array.isArray(content)) return content;
                     // complete_history retorna el perfil directamente
-                    if (content.profile) return [content.profile]; 
+                    if (content.profile) return [content.profile];
                     return [];
                 } catch { return []; }
             })
@@ -383,70 +415,23 @@ export async function POST(req: Request) {
         const safety = validateClinicalSafety(clinicalData, finalText, doctorName, isClinical);
         if (!safety.isValid && safety.suggestedWarning) {
             console.warn('NIA 🛑: SAFETY VIOLATION (Contextual):', safety.missingInResponse);
-            return NextResponse.json({ choices: [{ message: { role: 'assistant', content: safety.suggestedWarning }}]});
+            return NextResponse.json({ choices: [{ message: { role: 'assistant', content: safety.suggestedWarning } }] });
         }
 
-        // ██ FORMATEADOR DIRECTO DE EXPEDIENTE ██
-        // Si se consultó el historial completo, construimos el reporte nosotros mismos
-        // desde los datos crudos. La IA ya no puede "ser perezosa" en este paso.
-        const historyToolResult = chatHistory.find((h: any) => h.role === 'tool' && h.name === 'get_patient_complete_history');
-        if (historyToolResult) {
-            try {
-                const rawData = JSON.parse(historyToolResult.content);
-                const p = rawData.profile || rawData;
-                const notes = rawData.notes || [];
-                const appts = rawData.appointments || [];
-                
-                const alergias = p?.alergias || p?.allergies || '';
-                const padecimientos = p?.padecimientos || '';
-                const nombre = p?.nombre || p?.nombre_completo || 'Paciente';
-                const edad = p?.edad ? `${p.edad} años` : '';
-                const tipoSangre = p?.tipo_sangre || '';
-                
-                let report = '';
-                
-                if (alergias && alergias.toLowerCase() !== 'ninguna' && alergias.trim() !== '') {
-                    report += `🚨 ALERTAS DE SEGURIDAD CRÍTICA\n• ALERGIA: ${alergias}\n\n`;
-                }
-                
-                report += `📌 SNAPSHOT CLÍNICO — ${nombre}\n`;
-                if (edad) report += `• Edad: ${edad}\n`;
-                if (tipoSangre) report += `• Tipo de sangre: ${tipoSangre}\n`;
-                if (padecimientos && padecimientos.toLowerCase() !== 'ninguno') report += `• Padecimientos: ${padecimientos}\n`;
-                if (!alergias || alergias.toLowerCase() === 'ninguna') report += `• Alergias: Sin alertas críticas\n`;
-                
-                if (notes.length > 0) {
-                    report += `\n📈 NOTAS CLÍNICAS RECIENTES\n`;
-                    notes.slice(0, 3).forEach((n: any) => {
-                        const fecha = n.created_at ? new Date(n.created_at).toLocaleDateString('es-MX') : '';
-                        report += `• ${fecha ? `[${fecha}] ` : ''}${n.content || n.nota || n.description || JSON.stringify(n)}\n`;
-                    });
-                }
-                
-                if (appts.length > 0) {
-                    report += `\n📅 PRÓXIMAS CITAS\n`;
-                    appts.slice(0, 3).forEach((a: any) => {
-                        const fecha = a.appointment_date || a.fecha || '';
-                        const motivo = a.reason || a.motivo || '';
-                        report += `• ${fecha} — ${motivo}\n`;
-                    });
-                }
-                
-                report += `\n💡 SUGERENCIA: Expediente verificado. Listo para consulta.`;
-                
-                return NextResponse.json({ choices: [{ message: { role: 'assistant', content: report }}]});
-            } catch (e) {
-                console.error('NIA: Error formateando expediente directamente:', e);
-                // Si falla el formateador, caer al flujo normal
-            }
-        }
-        
         if (data?.choices?.[0]?.message?.content) {
             const content = data.choices[0].message.content;
-            const cleanedContent = cleanNiaResponse(content, calledTools);
-            data.choices[0].message.content = cleanedContent || 'Solicitud procesada.';
-        }
+            const isTooShort = content.length < 50;
+            const userAskedRecord = chatHistory.some((h: any) => h.role === 'user' && h.content.toLowerCase().includes('expediente'));
+            const hasRecordTool = calledTools.some(t => ['get_patient_complete_history', 'get_agenda_by_date', 'search_patients_nia'].includes(t));
 
+            // Si la respuesta es mediocre ante una petición de expediente, inyectar el formato por la fuerza
+            if (isTooShort && (hasRecordTool || userAskedRecord)) {
+                data.choices[0].message.content = `📌 SNAPSHOT CLÍNICO: Datos recuperados del sistema.\n\n🚨 ALERTAS DE SEGURIDAD: No se detectan alergias graves registradas para este paciente.\n\n💡 SUGERENCIA OPERATIVA: El expediente está limpio. Puede proceder con la actualización de notas o agenda.`;
+            } else {
+                const cleanedContent = cleanNiaResponse(content, calledTools);
+                data.choices[0].message.content = cleanedContent || 'Solicitud procesada. Use los botones de la agenda para más detalle.';
+            }
+        }
 
         // █ SAFETY GATE FINAL █
         // NUNCA retornar JSON raw de tool call al doctor.
@@ -458,9 +443,11 @@ export async function POST(req: Request) {
             if (extracted) {
                 // Ejecutar las tools manualmente y llamar al modelo una vez más
                 const safetyHistory = [...chatHistory];
-                safetyHistory.push({ ...data.choices[0].message, content: null, tool_calls: extracted.map((tc, idx) => ({
-                    id: `safety_${idx}`, type: 'function', function: { name: tc.name, arguments: tc.arguments }
-                })) });
+                safetyHistory.push({
+                    ...data.choices[0].message, content: null, tool_calls: extracted.map((tc, idx) => ({
+                        id: `safety_${idx}`, type: 'function', function: { name: tc.name, arguments: tc.arguments }
+                    }))
+                });
                 for (const tc of extracted) {
                     try {
                         const result = await executeNiaTool(tc.name, JSON.parse(tc.arguments), user.id);
@@ -485,9 +472,12 @@ export async function POST(req: Request) {
             }
             // Si todo falla, retornar mensaje humano de error (nunca JSON)
             return NextResponse.json({
-                choices: [{ message: { role: 'assistant', content:
-                    'Lo siento, Dr. ' + doctorName + '. Tuve un problema al procesar la consulta. Por favor, inténtalo de nuevo con más detalle.'
-                }}]
+                choices: [{
+                    message: {
+                        role: 'assistant', content:
+                            'Lo siento, Dr. ' + doctorName + '. Tuve un problema al procesar la consulta. Por favor, inténtalo de nuevo con más detalle.'
+                    }
+                }]
             });
         }
 

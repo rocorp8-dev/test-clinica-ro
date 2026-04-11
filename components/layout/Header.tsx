@@ -91,15 +91,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
         const notifs: Notification[] = []
 
-        // Extrae hora directo del string ISO sin conversión de timezone (igual que la agenda)
+        // Extrae hora convirtiendo al timezone local del navegador (igual que la agenda)
         const extractTime = (fechaStr: string) => {
-            const timeStr = fechaStr?.split('T')[1]
-            if (!timeStr) return '--:--'
-            const [h, m] = timeStr.split(':')
-            let hours = parseInt(h)
-            const ampm = hours >= 12 ? 'p.m.' : 'a.m.'
-            hours = hours % 12 || 12
-            return `${hours}:${m} ${ampm}`
+            if (!fechaStr) return '--:--'
+            return new Date(fechaStr).toLocaleTimeString('es-MX', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            })
         }
 
         const extractDate = (fechaStr: string) => fechaStr?.split('T')[0] || ''
@@ -119,13 +118,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
         })
 
         citasPendientes?.filter(c => !citasHoy?.find(h => h.id === c.id)).forEach(c => {
-            const timeStr = c.fecha?.split('T')[1] || ''
+            const horaLabel = extractTime(c.fecha)
             const dateStr = extractDate(c.fecha)
-            const [h, m] = timeStr.split(':')
-            let hours = parseInt(h)
-            const ampm = hours >= 12 ? 'p.m.' : 'a.m.'
-            hours = hours % 12 || 12
-            const horaLabel = `${hours}:${m} ${ampm}`
             notifs.push({
                 id: c.id + '_pend',
                 type: 'cita_pendiente',
