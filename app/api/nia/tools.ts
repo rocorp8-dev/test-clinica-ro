@@ -6,23 +6,31 @@ const supabase = createClient(
     (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key')
 );
 
-// Helper: rango UTC correspondiente a un día completo en CDMX (UTC-6)
-// Ex: 2026-04-09 CDMX → { gte: '2026-04-09T06:00:00.000Z', lte: '2026-04-10T05:59:59.999Z' }
-function cdmxDayRangeUTC(isoDateStr?: string): { start: string; end: string; localDate: string } {
-    // Hora actual en CDMX
-    const nowCdmx = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
-    const year = isoDateStr ? parseInt(isoDateStr.split('-')[0]) : nowCdmx.getFullYear();
-    const month = isoDateStr ? parseInt(isoDateStr.split('-')[1]) - 1 : nowCdmx.getMonth();
-    const day = isoDateStr ? parseInt(isoDateStr.split('-')[2]) : nowCdmx.getDate();
-    // CDMX es UTC-6 (o UTC-5 en horario de verano; usamos Date para que JS lo resuelva)
-    const startCdmx = new Date(year, month, day, 0, 0, 0, 0);
-    const endCdmx   = new Date(year, month, day, 23, 59, 59, 999);
-    // Offset CDMX en ms (normalmente -6h o -5h en verano)
-    const offsetMs = new Date(startCdmx.toLocaleString('en-US', { timeZone: 'America/Mexico_City' })).getTime() - startCdmx.getTime();
-    const startUTC = new Date(startCdmx.getTime() - offsetMs);
-    const endUTC   = new Date(endCdmx.getTime()   - offsetMs);
-    const localDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return { start: startUTC.toISOString(), end: endUTC.toISOString(), localDate };
+function formatToCdmx(isoStr: string) {
+    if (!isoStr) return '';
+    const date = new Date(isoStr);
+    return date.toLocaleString('es-MX', { 
+        timeZone: 'America/Mexico_City',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }) + ' (Hora CDMX)';
+}
+
+function cdmxDayRangeUTC(dateInput?: string) {
+    // Si no hay input, usar hoy en CDMX
+    const now = new Date();
+    const localStr = dateInput || now.toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+    
+    // Rango: desde las 00:00:00 hasta las 23:59:59 en America/Mexico_City
+    const start = new Date(`${localStr}T00:00:00-06:00`);
+    const end = new Date(`${localStr}T23:59:59-06:00`);
+
+    return {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        localDate: localStr
+    };
 }
 
 export const NIA_TOOLS = [
@@ -44,7 +52,7 @@ export const NIA_TOOLS = [
         type: "function",
         function: {
             name: "get_patient_complete_history",
-            description: "Obtiene historial clínico completo (consultas, notas médicas) de un paciente. Usa el 'id' de search_patients como patient_id.",
+            description: "Obtiene el resumen clínico completo (consultas, notas médicas) de un paciente. Usa el 'id' de search_patients como patient_id.",
             parameters: {
                 type: "object",
                 properties: {
@@ -70,24 +78,8 @@ export const NIA_TOOLS = [
     {
         type: "function",
         function: {
-            name: "create_appointment",
-            description: "Agenda una nueva cita. Requiere nombre/id del paciente, fecha ISO 8601 y motivo.",
-            parameters: {
-                type: "object",
-                properties: {
-                    patient_id: { type: "string", description: "UUID o nombre del paciente." },
-                    fecha: { type: "string", description: "Fecha y hora ISO 8601 con timezone CDMX (ej: 2026-04-15T10:00:00-06:00)." },
-                    motivo: { type: "string", description: "Motivo de la consulta." }
-                },
-                required: ["patient_id", "fecha", "motivo"]
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
             name: "confirm_appointment",
-            description: "Confirma una cita existente. Primero usa get_today_agenda para obtener el appointment_id.",
+            description: "Marca una cita como confirmada.",
             parameters: {
                 type: "object",
                 properties: {
@@ -101,12 +93,11 @@ export const NIA_TOOLS = [
         type: "function",
         function: {
             name: "cancel_appointment",
-            description: "Cancela una cita existente. Primero usa get_today_agenda para obtener el appointment_id.",
+            description: "Marca una cita como cancelada.",
             parameters: {
                 type: "object",
                 properties: {
-                    appointment_id: { type: "string", description: "UUID de la cita a cancelar." },
-                    motivo_cancelacion: { type: "string", description: "Razón opcional de la cancelación." }
+                    appointment_id: { type: "string", description: "UUID de la cita a cancelar." }
                 },
                 required: ["appointment_id"]
             }
@@ -116,18 +107,34 @@ export const NIA_TOOLS = [
         type: "function",
         function: {
             name: "add_medical_note",
-            description: "Agrega una nota médica SOAP al expediente de un paciente. Usa el id del paciente.",
+            description: "Guarda un resumen de la visita médica (observaciones, plan, etc).",
             parameters: {
                 type: "object",
                 properties: {
-                    patient_id: { type: "string", description: "UUID del paciente." },
-                    subjetivo: { type: "string", description: "Síntomas y queja principal del paciente." },
-                    objetivo: { type: "string", description: "Hallazgos físicos, signos vitales, exploración." },
-                    analisis: { type: "string", description: "Diagnóstico o impresión clínica." },
-                    plan: { type: "string", description: "Tratamiento, indicaciones, medicamentos, seguimiento." },
-                    cie10: { type: "string", description: "Código CIE-10 del diagnóstico (opcional)." }
+                    patient_id: { type: "string", description: "UUID o nombre del paciente." },
+                    subjetivo: { type: "string" },
+                    objetivo: { type: "string" },
+                    analisis: { type: "string" },
+                    plan: { type: "string" },
+                    cie10: { type: "string" }
                 },
-                required: ["patient_id", "subjetivo", "analisis", "plan"]
+                required: ["patient_id"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "create_appointment",
+            description: "Agenda una nueva cita médica.",
+            parameters: {
+                type: "object",
+                properties: {
+                    patient_id: { type: "string", description: "UUID del paciente (o nombre para búsqueda)." },
+                    fecha: { type: "string", description: "Fecha y hora en formato ISO 8601 (ej: 2026-04-15T10:00:00)." },
+                    motivo: { type: "string", description: "Breve motivo de la consulta." }
+                },
+                required: ["patient_id", "fecha", "motivo"]
             }
         }
     },
@@ -135,15 +142,19 @@ export const NIA_TOOLS = [
         type: "function",
         function: {
             name: "register_patient",
-            description: "Registra un nuevo paciente en el sistema.",
+            description: "Registra a un nuevo paciente en el sistema.",
             parameters: {
                 type: "object",
                 properties: {
                     nombre: { type: "string" },
-                    telefono: { type: "string", description: "Opcional." },
-                    email: { type: "string", description: "Opcional." },
-                    dni: { type: "string", description: "Opcional." },
-                    alergias: { type: "string", description: "Opcional. Muy importante." }
+                    email: { type: "string" },
+                    telefono: { type: "string" },
+                    dni: { type: "string" },
+                    edad: { type: "number" },
+                    genero: { type: "string" },
+                    tipo_sangre: { type: "string" },
+                    alergias: { type: "string" },
+                    padecimientos: { type: "string" }
                 },
                 required: ["nombre"]
             }
@@ -153,14 +164,14 @@ export const NIA_TOOLS = [
         type: "function",
         function: {
             name: "register_payment",
-            description: "Registra un cobro por una consulta y marca la cita como completada.",
+            description: "Registra un pago realizado por un paciente.",
             parameters: {
                 type: "object",
                 properties: {
-                    appointment_id: { type: "string", description: "UUID de la cita a la que pertenece el cobro." },
-                    amount: { type: "number", description: "Monto en MXN." },
-                    method: { type: "string", enum: ["efectivo", "tarjeta", "transferencia", "otro"], default: "efectivo" },
-                    notes: { type: "string", description: "Notas adicionales (opcional)." }
+                    appointment_id: { type: "string" },
+                    amount: { type: "number" },
+                    method: { type: "string", description: "efectivo, tarjeta, transferencia" },
+                    notes: { type: "string" }
                 },
                 required: ["appointment_id", "amount"]
             }
@@ -170,12 +181,12 @@ export const NIA_TOOLS = [
         type: "function",
         function: {
             name: "reschedule_appointment",
-            description: "Cambia la fecha de una cita existente (Re-agendar).",
+            description: "Cambia la fecha de una cita existente.",
             parameters: {
                 type: "object",
                 properties: {
-                    appointment_id: { type: "string", description: "UUID de la cita a mover." },
-                    nueva_fecha: { type: "string", description: "Nueva fecha ISO 8601 (ej: 2026-04-15T10:00:00-06:00)." }
+                    appointment_id: { type: "string" },
+                    nueva_fecha: { type: "string", description: "ISO 8601" }
                 },
                 required: ["appointment_id", "nueva_fecha"]
             }
@@ -185,16 +196,16 @@ export const NIA_TOOLS = [
         type: "function",
         function: {
             name: "update_patient",
-            description: "Actualiza o corrige datos de un paciente ya registrado (Teléfono, Alergias, etc).",
+            description: "Actualiza los datos de un paciente existente (teléfono, alergias, etc).",
             parameters: {
                 type: "object",
                 properties: {
-                    patient_id: { type: "string", description: "UUID del paciente a actualizar." },
-                    nombre: { type: "string", description: "Nuevo nombre (opcional)." },
-                    telefono: { type: "string", description: "Nuevo teléfono (opcional)." },
-                    alergias: { type: "string", description: "Nuevas alergias (opcional)." },
-                    padecimientos: { type: "string", description: "Nuevos padecimientos (opcional)." },
-                    email: { type: "string", description: "Nuevo email (opcional)." }
+                    patient_id: { type: "string", description: "UUID o nombre." },
+                    telefono: { type: "string" },
+                    email: { type: "string" },
+                    alergias: { type: "string" },
+                    padecimientos: { type: "string" },
+                    nombre: { type: "string" }
                 },
                 required: ["patient_id"]
             }
@@ -207,10 +218,9 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
 
     try {
         switch (name) {
-
             case 'search_patients': {
                 const stopWords = /\b(expediente|historial|cita|paciente|del?|de|la|el|los|las|me|muestra|mu[eé]strame|dame|busca|buscar|ver|quiero|necesito|informaci[oó]n|info|completo|completa|actividad)\b/gi;
-                const cleanQuery = args.query
+                const cleanQuery = (args.query || '')
                     .replace(stopWords, '')
                     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                     .replace(/\s+/g, ' ').trim();
@@ -222,57 +232,45 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
 
                 if (error) throw error;
                 
-                // SAFETY ENRICHMENT: Aseguramos que las alergias siempre viajen con el reporte de búsqueda
-                // para que Nia las vea sin necesidad de llamar a otra tool.
                 const enrichedData = await Promise.all((data || []).map(async (p: any) => {
                     const { data: pData } = await supabase.from('patients').select('alergias, padecimientos, tipo_sangre').eq('id', p.id).single();
                     return { ...p, ...pData };
                 }));
 
-                console.log(`NIA: search_patients "${args.query}" → ${enrichedData.length} resultados (Enriquecidos con Alergias)`);
                 return enrichedData;
             }
 
             case 'get_patient_complete_history': {
-                // AUTO-HEALING: acepta nombre además de UUID
-                let patientParam = args.patient_id || args.uuid || args.id || args.query;
-                if (!patientParam) return { error: 'Falta patient_id o nombre.' };
+                let pParam = args.patient_id || args.uuid || args.id || args.query;
+                if (!pParam) return { error: 'Falta patient_id o nombre.' };
 
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(patientParam));
-                let patientId = patientParam;
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(pParam));
+                let pId = pParam;
 
                 if (!isUuid) {
-                    const cleanQuery = String(patientParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
-                    const { data: found, error: sErr } = await supabase.rpc('search_patients_nia', {
-                        search_query: `%${cleanQuery}%`,
-                        doctor_id: userId
-                    });
-                    if (sErr || !found?.length) {
-                        return { error: `ERROR_PACIENTE_NO_ENCONTRADO: "${patientParam}" no está registrado en tu sistema.` };
-                    }
-                    patientId = found[0].id;
-                    console.log(`NIA AutoHealing History: "${patientParam}" → UUID ${patientId}`);
+                    const q = String(pParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
+                    const { data: found } = await supabase.rpc('search_patients_nia', { search_query: `%${q}%`, doctor_id: userId });
+                    if (!found?.length) return { error: `Paciente "${pParam}" no encontrado.` };
+                    pId = found[0].id;
                 }
 
-                const [patientRes, appointmentsRes, notesRes] = await Promise.all([
-                    supabase.from('patients').select('*').eq('id', patientId).single(),
-                    supabase.from('appointments').select('id, fecha, motivo, estado').eq('patient_id', patientId).order('fecha', { ascending: false }).limit(20),
-                    supabase.from('medical_notes').select('id, created_at, subjetivo, objetivo, analisis, plan, codigo_cie10').eq('patient_id', patientId).order('created_at', { ascending: false }).limit(10)
+                const [pRes, aRes, nRes] = await Promise.all([
+                    supabase.from('patients').select('*').eq('id', pId).single(),
+                    supabase.from('appointments').select('id, fecha, motivo, estado').eq('patient_id', pId).order('fecha', { ascending: false }).limit(20),
+                    supabase.from('medical_notes').select('id, created_at, subjetivo, objetivo, analisis, plan, codigo_cie10').eq('patient_id', pId).order('created_at', { ascending: false }).limit(10)
                 ]);
 
-                if (patientRes.error) throw patientRes.error;
-                return {
-                    profile: patientRes.data,
-                    appointments: appointmentsRes.data || [],
-                    medical_notes: notesRes.data || []
+                if (pRes.error) throw pRes.error;
+                return { 
+                    alertas_seguridad: pRes.data.alergias || 'Sin registros',
+                    profile: pRes.data, 
+                    appointments: (aRes.data || []).map(a => ({ ...a, hora_local: formatToCdmx(a.fecha) })),
+                    medical_notes: nRes.data || [] 
                 };
             }
 
             case 'get_agenda_by_date': {
-                // fecha es timestamptz — .like() NO funciona en PostgREST con ese tipo.
-                // Usamos rango UTC que cubre el día completo en CDMX.
                 const { start, end, localDate } = cdmxDayRangeUTC(args.fecha || undefined);
-
                 const { data, error } = await supabase
                     .from('appointments')
                     .select('id, fecha, motivo, estado, patients(nombre, telefono, alergias, padecimientos)')
@@ -281,256 +279,151 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     .lte('fecha', end)
                     .order('fecha', { ascending: true });
 
-                if (error) {
-                    console.error('NIA get_agenda_by_date DB error:', error);
-                    throw error;
-                }
-                return { date: localDate, total: data?.length || 0, appointments: data || [] };
+                if (error) throw error;
+                return { 
+                    date: localDate, 
+                    appointments: (data || []).map(a => ({
+                        ...a,
+                        hora_local: formatToCdmx(a.fecha)
+                    }))
+                };
             }
 
             case 'confirm_appointment': {
-                const { data, error } = await supabase
-                    .from('appointments')
-                    .update({ estado: 'confirmada' })
-                    .eq('id', args.appointment_id)
-                    .eq('doctor_id', userId)
-                    .select('id, fecha, motivo, patients(nombre, alergias, padecimientos)')
-                    .single();
-
+                const { data, error } = await supabase.from('appointments').update({ estado: 'confirmada' }).eq('id', args.appointment_id).eq('doctor_id', userId).select('id, fecha, patients(nombre)').single();
                 if (error) throw error;
                 return { success: true, appointment: data };
             }
 
             case 'cancel_appointment': {
-                const { data, error } = await supabase
-                    .from('appointments')
-                    .update({ estado: 'cancelada' })
-                    .eq('id', args.appointment_id)
-                    .eq('doctor_id', userId)
-                    .select('id, fecha, motivo, patients(nombre, alergias, padecimientos)')
-                    .single();
-
+                const { data, error } = await supabase.from('appointments').update({ estado: 'cancelada' }).eq('id', args.appointment_id).eq('doctor_id', userId).select('id, fecha, patients(nombre)').single();
                 if (error) throw error;
                 return { success: true, appointment: data };
             }
 
             case 'add_medical_note': {
-                // AUTO-HEALING
-                let patientParam = args.patient_id || args.uuid || args.id || args.nombre || args.query;
-                if (!patientParam) return { error: 'Falta patient_id o nombre.' };
-
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(patientParam));
-                let patientId = patientParam;
+                let pParam = args.patient_id || args.uuid || args.id || args.nombre || args.query;
+                if (!pParam) return { error: 'Falta paciente.' };
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(pParam));
+                let pId = pParam;
 
                 if (!isUuid) {
-                    const cleanQuery = String(patientParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
-                    const { data: found, error: sErr } = await supabase.rpc('search_patients_nia', {
-                        search_query: `%${cleanQuery}%`,
-                        doctor_id: userId
-                    });
-                    if (sErr || !found?.length) {
-                        return { error: `ERROR_PACIENTE_NO_ENCONTRADO: No se encontró al paciente "${patientParam}".` };
-                    }
-                    patientId = found[0].id;
-                    console.log(`NIA AutoHealing Notes: "${patientParam}" → UUID ${patientId}`);
+                    const q = String(pParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
+                    const { data: found } = await supabase.rpc('search_patients_nia', { search_query: `%${q}%`, doctor_id: userId });
+                    if (!found?.length) return { error: `Paciente "${pParam}" no encontrado.` };
+                    pId = found[0].id;
                 }
 
-                const { data, error } = await supabase
-                    .from('medical_notes')
-                    .insert([{
-                        patient_id: patientId,
-                        doctor_id: userId,
-                        subjetivo: args.subjetivo || '',
-                        objetivo: args.objetivo || '',
-                        analisis: args.analisis || '',
-                        plan: args.plan || '',
-                        codigo_cie10: args.cie10 || null,
-                        tipo_nota: 'evolucion'
-                    }])
-                    .select('id, created_at, patients(nombre, alergias, padecimientos)')
-                    .single();
+                const { data, error } = await supabase.from('medical_notes').insert([{
+                    patient_id: pId,
+                    doctor_id: userId,
+                    subjetivo: args.subjetivo || '',
+                    objetivo: args.objetivo || '',
+                    analisis: args.analisis || '',
+                    plan: args.plan || '',
+                    codigo_cie10: args.cie10 || null,
+                    tipo_nota: 'evolucion'
+                }]).select('id, created_at').single();
 
                 if (error) throw error;
-                return { success: true, note_id: data.id, created_at: data.created_at };
+                return { success: true, note_id: data.id };
             }
 
             case 'create_appointment': {
-                // AUTO-HEALING: acepta nombre además de UUID
-                let patientParam = args.patient_id || args.nombre || args.paciente || args.query;
-                if (!patientParam) return { error: 'Falta patient_id o nombre del paciente.' };
+                let pParam = args.patient_id || args.nombre || args.paciente;
+                if (!pParam) return { error: 'Falta paciente.' };
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(pParam));
+                let pId = pParam;
 
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(patientParam));
                 if (!isUuid) {
-                    const cleanQuery = String(patientParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
-                    const { data: found, error: sErr } = await supabase.rpc('search_patients_nia', {
-                        search_query: `%${cleanQuery}%`,
-                        doctor_id: userId
-                    });
-                    if (sErr || !found?.length) {
-                        return { error: `ERROR_PACIENTE_NO_ENCONTRADO: "${patientParam}" no está registrado. Pide al médico que registre al paciente primero.` };
-                    }
-                    args.patient_id = found[0].id;
-                    console.log(`NIA AutoHealing create_appointment: "${patientParam}" → UUID ${args.patient_id}`);
-                } else {
-                    args.patient_id = patientParam;
+                    const q = String(pParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
+                    const { data: found } = await supabase.rpc('search_patients_nia', { search_query: `%${q}%`, doctor_id: userId });
+                    if (!found?.length) return { error: `Paciente "${pParam}" no encontrado. Regístralo primero.` };
+                    pId = found[0].id;
                 }
 
-                // Normalizar timezone
-                let dateStr = args.fecha.trim();
-                const hasOffset = dateStr.includes('+') || (dateStr.includes('-') && dateStr.lastIndexOf('-') > 10) || dateStr.endsWith('Z');
-                if (!hasOffset && /\d$/.test(dateStr)) dateStr += '-06:00';
+                let dStr = args.fecha.trim();
+                if (!dStr.includes('+') && !dStr.includes('Z')) dStr += '-06:00';
+                const rDate = new Date(dStr);
+                if (isNaN(rDate.getTime())) return { error: 'Fecha inválida.' };
 
-                const requestDate = new Date(dateStr);
-                if (isNaN(requestDate.getTime())) {
-                    return { error: `ERROR_FORMATO_FECHA: "${args.fecha}" no es una fecha válida. Usa ISO 8601: 2026-04-15T10:00:00-06:00` };
-                }
+                const day = dStr.split('T')[0];
+                const { start, end } = cdmxDayRangeUTC(day);
+                const { data: existing } = await supabase.from('appointments').select('id, fecha, patients(nombre)').eq('doctor_id', userId).gte('fecha', start).lte('fecha', end).neq('estado', 'cancelada');
 
-                // Mínimo 1 hora de anticipación
-                if (requestDate.getTime() < Date.now() + 60 * 60 * 1000) {
-                    return {
-                        error: 'ERROR_PROTOCOLO_TIEMPO: La cita debe agendarse con mínimo 1 hora de anticipación. NO SE AGENDÓ.',
-                        tiempo_actual: new Date().toISOString()
-                    };
-                }
-
-                // Verificar disponibilidad (bloques de 45 min)
-                // fecha es timestamptz — usamos rango UTC del día para evitar error 42883
-                const dayStr = dateStr.split('T')[0]; // YYYY-MM-DD del ISO normalizado
-                const { start: dayStart, end: dayEnd } = cdmxDayRangeUTC(dayStr);
-                const { data: existing } = await supabase
-                    .from('appointments')
-                    .select('id, fecha, patients(nombre)')
-                    .eq('doctor_id', userId)
-                    .gte('fecha', dayStart)
-                    .lte('fecha', dayEnd)
-                    .neq('estado', 'cancelada');
-
-                const requestedMs = requestDate.getTime();
-                for (const appt of existing || []) {
-                    const apptMs = new Date(appt.fecha).getTime();
-                    if (!isNaN(apptMs) && Math.abs(requestedMs - apptMs) < 45 * 60 * 1000) {
-                        const ocupado = (appt.patients as any)?.nombre || 'otro paciente';
-                        return {
-                            error: `ERROR_CONFLICTO_HORARIO: Ese horario interfiere con la cita de ${ocupado}. Las citas son de 45 min. NO SE AGENDÓ. Propón otro horario.`,
-                            estado_agenda: 'OCUPADO'
-                        };
+                const rMs = rDate.getTime();
+                for (const a of existing || []) {
+                    const aMs = new Date(a.fecha).getTime();
+                    if (Math.abs(rMs - aMs) < 45 * 60 * 1000) {
+                        return { error: `AVISO: Este horario ya está ocupado por ${(a.patients as any)?.nombre || 'otro paciente'}.`, conflict: true };
                     }
                 }
 
-                const { data, error } = await supabase
-                    .from('appointments')
-                    .insert([{ patient_id: args.patient_id, doctor_id: userId, fecha: dateStr, motivo: args.motivo, estado: 'pendiente' }])
-                    .select('id, fecha, motivo, patients(nombre, alergias, padecimientos)')
-                    .single();
-
+                const { data, error } = await supabase.from('appointments').insert([{ patient_id: pId, doctor_id: userId, fecha: dStr, motivo: args.motivo, estado: 'pendiente' }]).select('id, fecha, patients(nombre)').single();
                 if (error) throw error;
-                return { success: true, appointment: data };
+                return { success: true, appointment: { ...data, hora_local: formatToCdmx(data.fecha) } };
             }
 
             case 'register_patient': {
-                const { data, error } = await supabase
-                    .from('patients')
-                    .insert([{ 
-                        ...args, 
-                        user_id: userId 
-                    }])
-                    .select()
-                    .single();
-
+                const { data, error } = await supabase.from('patients').insert([{ ...args, user_id: userId }]).select().single();
                 if (error) throw error;
                 return { success: true, patient: data };
             }
 
             case 'register_payment': {
-                // 1. Obtener datos de la cita (usa doctor_id en appointments)
-                const { data: appt, error: aErr } = await supabase
-                    .from('appointments')
-                    .select('patient_id, doctor_id')
-                    .eq('id', args.appointment_id)
-                    .single();
-                
-                if (aErr || !appt) throw new Error('Cita no encontrada');
-
-                // 2. Insertar cobro (usa user_id en billing)
-                const { error: pErr } = await supabase
-                    .from('billing')
-                    .insert([{
-                        user_id: userId,
-                        appointment_id: args.appointment_id,
-                        patient_id: appt.patient_id,
-                        amount: args.amount,
-                        payment_method: args.method || 'efectivo',
-                        notes: args.notes
-                    }]);
-                
+                const { data: appt } = await supabase.from('appointments').select('patient_id').eq('id', args.appointment_id).single();
+                if (!appt) return { error: 'Cita no encontrada.' };
+                const { error: pErr } = await supabase.from('billing').insert([{ user_id: userId, appointment_id: args.appointment_id, patient_id: appt.patient_id, amount: args.amount, payment_method: args.method || 'efectivo' }]);
                 if (pErr) throw pErr;
-
-                // 3. Marcar cita como completada
-                await supabase
-                    .from('appointments')
-                    .update({ estado: 'completada' })
-                    .eq('id', args.appointment_id);
-
-                return { success: true, amount: args.amount, status: 'pagado y completado' };
+                await supabase.from('appointments').update({ estado: 'completada' }).eq('id', args.appointment_id);
+                return { success: true, amount: args.amount };
             }
 
             case 'reschedule_appointment': {
-                // Similar a create_appointment, validamos disponibilidad
-                let dateStr = args.nueva_fecha.trim();
-                const hasOffset = dateStr.includes('+') || (dateStr.includes('-') && dateStr.lastIndexOf('-') > 10) || dateStr.endsWith('Z');
-                if (!hasOffset && /\d$/.test(dateStr)) dateStr += '-06:00';
+                let dStr = args.nueva_fecha.trim();
+                if (!dStr.includes('+') && !dStr.includes('Z')) dStr += '-06:00';
+                const rDate = new Date(dStr);
+                const day = dStr.split('T')[0];
+                const { start, end } = cdmxDayRangeUTC(day);
+                const { data: existing } = await supabase.from('appointments').select('id, fecha').eq('doctor_id', userId).gte('fecha', start).lte('fecha', end).neq('id', args.appointment_id).neq('estado', 'cancelada');
 
-                const requestDate = new Date(dateStr);
-                const dayStr = dateStr.split('T')[0];
-                const { start: dayStart, end: dayEnd } = cdmxDayRangeUTC(dayStr);
-                
-                const { data: existing } = await supabase
-                    .from('appointments')
-                    .select('id, fecha, patients(nombre)')
-                    .eq('doctor_id', userId)
-                    .gte('fecha', dayStart)
-                    .lte('fecha', dayEnd)
-                    .neq('id', args.appointment_id) // Excluir la cita actual
-                    .neq('estado', 'cancelada');
-
-                const requestedMs = requestDate.getTime();
-                for (const appt of existing || []) {
-                    const apptMs = new Date(appt.fecha).getTime();
-                    if (!isNaN(apptMs) && Math.abs(requestedMs - apptMs) < 45 * 60 * 1000) {
-                        return { error: `ERROR_CONFLICTO_HORARIO: El nuevo horario interfiere con otra cita.` };
-                    }
+                const rMs = rDate.getTime();
+                for (const a of existing || []) {
+                    if (Math.abs(rMs - new Date(a.fecha).getTime()) < 45 * 60 * 1000) return { error: 'Horario ocupado.' };
                 }
 
-                const { data, error } = await supabase
-                    .from('appointments')
-                    .update({ fecha: dateStr })
-                    .eq('id', args.appointment_id)
-                    .select('id, fecha, patients(nombre)')
-                    .single();
-
+                const { data, error } = await supabase.from('appointments').update({ fecha: dStr }).eq('id', args.appointment_id).select('id, fecha').single();
                 if (error) throw error;
-                return { success: true, new_date: data.fecha, patient: (data.patients as any)?.nombre };
+                return { success: true, new_date: data.fecha };
             }
 
             case 'update_patient': {
-                const { patient_id, ...updateFields } = args;
-                const { data, error } = await supabase
-                    .from('patients')
-                    .update(updateFields)
-                    .eq('id', patient_id)
-                    .eq('user_id', userId)
-                    .select()
-                    .single();
+                let pParam = args.patient_id || args.id || args.nombre || args.query;
+                if (!pParam) return { error: 'Falta paciente.' };
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(pParam));
+                let pId = pParam;
 
+                if (!isUuid) {
+                    const q = String(pParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
+                    const { data: found } = await supabase.rpc('search_patients_nia', { search_query: `%${q}%`, doctor_id: userId });
+                    if (!found?.length) return { error: `Paciente "${pParam}" no encontrado.` };
+                    pId = found[0].id;
+                }
+
+                const upd = { ...args };
+                delete upd.patient_id; delete upd.id; delete upd.uuid; delete upd.query;
+                const { data, error } = await supabase.from('patients').update(upd).eq('id', pId).eq('user_id', userId).select().single();
                 if (error) throw error;
                 return { success: true, patient: data };
             }
 
             default:
-                return { error: `Tool desconocida: ${name}` };
+                return { error: `Herramienta "${name}" no reconocida.` };
         }
     } catch (err: any) {
         console.error(`NIA Tool Error (${name}):`, err.message);
-        return { error: err.message };
+        const m = err.message || '';
+        if (m.includes('uuid')) return { error: 'ID inválido. Usa un nombre o UUID real.' };
+        return { error: `Error técnico: ${m}` };
     }
 }
