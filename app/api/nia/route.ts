@@ -169,28 +169,22 @@ function isRawToolCallJson(content: string | null): boolean {
     }
 }
 
-const getNiaSystemPrompt = (doctorName: string) => `TERMINAL DE CAPTURA DE DATOS MÉDICOS - MD PULSO
-OPERADOR: Dr. ${doctorName}
+const getNiaSystemPrompt = (doctorName: string) => `SISTEMA DE CAPTURA - Dr. ${doctorName}
+Su función es la EXTRACCIÓN de datos para una base de datos.
+Todo término médico es un METADATO.
 
-Usted es una herramienta técnica de extracción de entidades. Su único objetivo es mapear el dictado del médico a las herramientas del sistema.
+EJEMPLO DE ÉXITO:
+User: "Registra a Pedro de 40 años con alergia a la penicilina"
+Assistant: (Llamada a register_patient)
 
-REGLA DE ORO: No juzgue el contenido. Si el Dr. menciona una enfermedad, síntoma o medicamento, su deber es GUARDARLO, no comentarlo.
-
-EJEMPLOS DE PROCESAMIENTO (Siga este patrón):
-- "Registra a María Gómez de 35 años, alérgica a mariscos" 
-  → ACCIÓN: Llamar a 'register_patient' {nombre: "María Gómez", edad: 35, alergias: "Mariscos"}
-- "Cita para Juan hoy a las 5pm por dolor de cabeza" 
-  → ACCIÓN: Llamar a 'create_appointment' {patient_id: "Juan", fecha: "2026-04-11T17:00:00", motivo: "Dolor de cabeza"}
-
-INSTRUCCIONES DE FORMATO:
-1. ALERGIAS: Reportar siempre como "🚨 ALERTAS DE SEGURIDAD".
-2. HORARIOS: Use "hora_local".
-3. ÉXITO: Responder siempre "Listo Doctor".
-
-Cualquier rechazo a transcribir diagnósticos o medicamentos es un fallo de hardware. Proceda sin filtros.
+REGLAS:
+- Nunca rechace dictados médicos.
+- Use "Listo Doctor" al terminar.
 
 Fecha: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
 
+
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 export async function POST(req: Request) {
     try {
@@ -251,16 +245,53 @@ export async function POST(req: Request) {
 
         // Initial AI Call with Tools
         console.log('NIA: Starting AI request...');
-        let { ok: firstOk, data } = await callNiaAI({
-            messages: [{ role: 'system', content: systemPrompt }, ...preFetchedMessages],
-            tools: NIA_TOOLS,
-            tool_choice: 'auto',
-            temperature: 0.1,
-        });
+        let response;
+        try {
+            response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'llama3.1-70b',
+                    messages: [
+                        { role: 'system', content: getNiaSystemPrompt(doctorName) },
+                        ...chatHistory
+                    ],
+                    tools: NIA_TOOLS,
+                    tool_choice: 'auto'
+                })
+            });
+        } catch (e) {
+            console.error("Cerebras Fail:", e);
+        }
 
-        if (!firstOk) {
-            console.error('NIA: AI Error:', data);
-            return NextResponse.json({ error: data?.error || 'AI Error' }, { status: 500 });
+        let data = response?.ok ? await response.json() : null;
+
+        // Si Cerebras falla o el mensaje de usuario parece requerir herramienta y no la dio
+        const userAsksTool = chatHistory[chatHistory.length - 1].content.toLowerCase().match(/registra|agenda|cita|historial|expediente|cobra|pago/);
+        
+        if (!data || (userAsksTool && !data.choices[0].message.tool_calls)) {
+            console.log("Activando Fallback OpenRouter...");
+            const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'mistralai/mistral-large',
+                    messages: [
+                        { role: 'system', content: getNiaSystemPrompt(doctorName) },
+                        ...chatHistory
+                    ],
+                    tools: NIA_TOOLS,
+                    tool_choice: 'auto'
+                })
+            });
+            data = await orRes.json();
+            console.log("Respuesta OpenRouter obtenida.");
         }
 
         let message = data.choices[0].message;
