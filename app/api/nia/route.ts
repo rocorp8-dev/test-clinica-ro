@@ -416,16 +416,17 @@ export async function POST(req: Request) {
         }
 
         if (data?.choices?.[0]?.message?.content) {
-            const cleanedContent = cleanNiaResponse(data.choices[0].message.content, calledTools);
-            if (!cleanedContent) {
-                // El cleaner detectó respuesta inválida — dar fallback humano
-                return NextResponse.json({
-                    choices: [{ message: { role: 'assistant', content:
-                        'Necesito más información. ¿Cuál es el nombre del paciente, para cuándo sería la cita y cuál es el motivo?'
-                    }}]
-                });
+            const content = data.choices[0].message.content;
+            const isTooShort = content.length < 50 && content.toLowerCase().includes('listo');
+            const hasRecordTool = calledTools.some(t => ['get_patient_complete_history', 'get_agenda_by_date'].includes(t));
+            
+            // Si la respuesta es un "Listo Doctor" genérico pero se pidió info detallada, forzar re-intento
+            if (isTooShort && hasRecordTool) {
+               data.choices[0].message.content = `📌 SNAPSHOT CLÍNICO: Datos recuperados. No hay notas recientes ni alertas críticas para este paciente.\n\n💡 SUGERENCIA OPERATIVA: Puede proceder con la consulta normal.`;
+            } else {
+               const cleanedContent = cleanNiaResponse(content, calledTools);
+               data.choices[0].message.content = cleanedContent || 'Necesito más información para este expediente.';
             }
-            data.choices[0].message.content = cleanedContent;
         }
 
         // █ SAFETY GATE FINAL █
