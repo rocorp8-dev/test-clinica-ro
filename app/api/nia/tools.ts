@@ -365,7 +365,9 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'register_patient': {
-                const { data, error } = await supabase.from('patients').insert([{ ...args, user_id: userId }]).select().single();
+                const cleanArgs = { ...args };
+                if (cleanArgs.edad) cleanArgs.edad = parseInt(String(cleanArgs.edad).replace(/\D/g, '')) || 0;
+                const { data, error } = await supabase.from('patients').insert([{ ...cleanArgs, user_id: userId }]).select().single();
                 if (error) throw error;
                 return { success: true, patient: data };
             }

@@ -136,7 +136,11 @@ function cleanNiaResponse(content: string | null, calledTools: string[] = []): s
         }
     }
 
-    // Eliminar líneas que sean JSON crudo de tool call o Python dicts
+    // BLOQUEO DE NEGATIVAS GENÉRICAS (Lo siento...)
+    if (cleaned.toLowerCase().includes('lo siento') || cleaned.toLowerCase().includes('no puedo continuar')) {
+        return `Doctor, me confundí al procesar los datos. Para realizar esta acción de forma segura, asegúrese de darme el nombre y los datos clave. Por ejemplo: "Nia, registra a María Pérez de 30 años con alergia al polen".`;
+    }
+
     return cleaned
         .split('\n')
         .filter(line => {
