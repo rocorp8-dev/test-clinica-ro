@@ -60,13 +60,23 @@ export default function SettingsPage() {
                             <div className="h-4 w-4 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
                             <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Protección de Datos Activa</span>
                         </div>
-                        <h3 className="text-xl font-bold mb-4 font-display">Tus datos están seguros</h3>
+                        <h3 className="text-xl font-bold mb-4 font-display">Tus datos están protegidos</h3>
                         <p className="text-slate-400 text-sm mb-8 leading-relaxed">
-                            Cumplimos con las normativas <span className="text-white font-bold">HIPAA</span> y <span className="text-white font-bold">RGPD</span> para garantizar la privacidad de tus pacientes.
+                            Utilizamos infraestructura de seguridad de nivel empresarial. Todos los datos viajan cifrados y el acceso está controlado por roles de usuario.
                         </p>
-                        <div className="flex items-center gap-2 p-4 bg-white/5 rounded-2xl border border-white/10">
-                            <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                            <span className="text-xs font-medium">Certificado SSL Válido</span>
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2 p-4 bg-white/5 rounded-2xl border border-white/10">
+                                <ShieldCheck className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+                                <span className="text-xs font-medium">Certificado SSL válido — conexión HTTPS cifrada</span>
+                            </div>
+                            <div className="flex items-center gap-2 p-4 bg-white/5 rounded-2xl border border-white/10">
+                                <ShieldCheck className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+                                <span className="text-xs font-medium">Autenticación segura — sesiones con tokens firmados</span>
+                            </div>
+                            <div className="flex items-center gap-2 p-4 bg-white/5 rounded-2xl border border-white/10">
+                                <ShieldCheck className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+                                <span className="text-xs font-medium">Control de acceso por roles — cada médico solo ve sus pacientes</span>
+                            </div>
                         </div>
                     </div>
 
