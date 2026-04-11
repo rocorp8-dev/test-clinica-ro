@@ -243,6 +243,9 @@ export async function POST(req: Request) {
             ];
         }
 
+        // Handle Tool Calls Loop history
+        const chatHistory = [...messages];
+
         // Initial AI Call with Tools
         console.log('NIA: Starting AI request...');
         let response;
@@ -314,7 +317,7 @@ export async function POST(req: Request) {
 
         // Handle Tool Calls Loop
         let iterations = 0;
-        const chatHistory = [...messages, message];
+        chatHistory.push(message);
 
         while (message.tool_calls && iterations < 5) {
             console.log(`NIA: Processing ${message.tool_calls.length} tool calls(Iteration ${iterations + 1})`);
