@@ -1105,3 +1105,19 @@ if (!isUuid) {
 
 ---
 > *Última actualización: 10 Abril 2026 — Merge template/LESSONS_LEARNED.md (#35-51) + Sesión MdPulso (test-clinica) — timezone, tool calling, safety gates | Ro SaaS Factory v5.5*
+
+## 🛑 66. AGENTES IA EN VERCEL — `SUPABASE_SERVICE_ROLE_KEY` FALTANTE DEVUELVE CERO RESULTADOS SIN ERROR
+**Fallo:** En test-clinica (MdPulso), NIA decía "No tienes citas programadas para hoy" aunque la Agenda page mostraba 3 citas correctamente. El tool `get_agenda_by_date` ejecutaba `.eq('doctor_id', userId)` y obtenía 0 resultados. La Agenda page sí funcionaba porque usa cookies del browser. `SUPABASE_SERVICE_ROLE_KEY` nunca se subió a Vercel — el tool caía al anon key sin sesión de auth, el RLS bloqueaba todas las queries silenciosamente.
+**Proyecto:** test-clinica (MdPulso)
+**Solución Inyectada a Fábrica:**
+Todo API route o server action que use un cliente Supabase admin (service role) DEBE tener `SUPABASE_SERVICE_ROLE_KEY` en Vercel. Sin ella, cae al anon key + sin sesión = RLS bloquea todo sin lanzar error explícito.
+```bash
+# Verificar antes de dar por terminado cualquier proyecto con agentes IA:
+npx vercel env ls production | grep -i service_role
+# Si no aparece → el agente no puede leer datos en producción
+
+# Agregar:
+echo "TU_SERVICE_ROLE_KEY" | npx vercel env add SUPABASE_SERVICE_ROLE_KEY production --force
+npx vercel --prod  # redesplegar para que tome efecto
+```
+**Regla:** El checklist post-deploy de cualquier proyecto con agentes IA debe incluir verificar que `SUPABASE_SERVICE_ROLE_KEY` esté en Vercel production.

@@ -200,16 +200,15 @@ FECHA/HORA CDMX: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexic
 • Si detectas CUALQUIER alergia (polen, penicilina, etc.), DEBES ponerla en la sección 🚨 ALERTAS DE SEGURIDAD. No la omitas nunca por brevedad.
 • La seguridad del paciente es tu prioridad #1. Un error aquí es inaceptable.
 
-━━━ FORMATO MANDATORIO PARA EXPEDIENTES ━━━
-Cuando uses 'get_patient_complete_history' o identifiques a un paciente, tu respuesta DEBE tener este formato exacto:
+━━━ FORMATO DE EXPEDIENTE ━━━
+Solo cuando el médico solicite ver un expediente, historial o snapshot (usando 'get_patient_complete_history'), responde en este formato estructurado:
 
-🚨 ALERTAS DE SEGURIDAD — [Enlista alergias críticas, riesgos o "Sin registro detectado"]
+🚨 ALERTAS DE SEGURIDAD — [Enlista alergias o padecimientos críticos de forma clara]
 📌 SNAPSHOT CLÍNICO — [Nombre, edad, diagnósticos activos, medicación, resumen de flujo]
 📈 TENDENCIA — [Patrones detectados en el historial]
 💡 SUGERENCIA OPERATIVA — [Acción clínica inmediata]
 
-━━━ OTROS FORMATOS ━━━
-Para agenda, citas y notas: Texto natural, ejecutivo, sin iconos, enfocado en confirmar la acción realizada.`;
+Para consultas administrativas (agenda, citas, cobros, registro): Texto natural, profesional y ejecutivo. No uses iconos ni estructuras complejas. No fuerces la sección de Alertas si no es una consulta clínica.`;
 
 export async function POST(req: Request) {
     try {
@@ -379,21 +378,27 @@ export async function POST(req: Request) {
 
         // █ SAFETY GATE: VALIDACIÓN CLÍNICA CENTRALIZADA █
         const calledTools = chatHistory.filter(m => m.role === 'tool').map(m => m.name);
+        
+        // CONTEXTO: ¿Es una consulta clínica o administrativa?
+        const isClinical = calledTools.some(t => ['get_patient_complete_history', 'add_medical_note'].includes(t));
+        
         const clinicalData = chatHistory
             .filter(m => m.role === 'tool')
             .map(m => {
                 try {
                     const content = JSON.parse(m.content);
-                    if (Array.isArray(content)) return content; // search_patients
-                    if (content.profile) return [content.profile]; // complete_history
+                    // search_patients puede retornar array de records con alergias
+                    if (Array.isArray(content)) return content; 
+                    // complete_history retorna el perfil directamente
+                    if (content.profile) return [content.profile]; 
                     return [];
                 } catch { return []; }
             })
             .flat();
 
-        const safety = validateClinicalSafety(clinicalData, finalText, doctorName);
+        const safety = validateClinicalSafety(clinicalData, finalText, doctorName, isClinical);
         if (!safety.isValid && safety.suggestedWarning) {
-            console.warn('NIA 🛑: SAFETY VIOLATION detected by engine:', safety.missingInResponse);
+            console.warn('NIA 🛑: SAFETY VIOLATION (Contextual):', safety.missingInResponse);
             return NextResponse.json({ choices: [{ message: { role: 'assistant', content: safety.suggestedWarning }}]});
         }
 

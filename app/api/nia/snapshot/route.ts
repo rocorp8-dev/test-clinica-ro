@@ -73,7 +73,7 @@ ANALIZA la siguiente data bruta del paciente y extrae los 4 componentes requerid
 {
   "safetyAlerts": {
     "hasAlerts": boolean (true si hay alergias graves o condiciones crónicas que requieran atención urgente, falso en caso contrario),
-    "notes": "Si es true, describe brevemente la alerta en rojo. Si es false, responde 'Apto: Sin alertas registradas'"
+    "notes": "Si es true, describe brevemente el riesgo crítico detectado de forma clara. Si es false, responde 'Apto: Sin alertas registradas'"
   },
   "snapshot": {
     "reason": "Razón de la última visita",

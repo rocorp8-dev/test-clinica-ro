@@ -180,6 +180,25 @@ export const NIA_TOOLS = [
                 required: ["appointment_id", "nueva_fecha"]
             }
         }
+    },
+    {
+        type: "function",
+        function: {
+            name: "update_patient",
+            description: "Actualiza o corrige datos de un paciente ya registrado (Teléfono, Alergias, etc).",
+            parameters: {
+                type: "object",
+                properties: {
+                    patient_id: { type: "string", description: "UUID del paciente a actualizar." },
+                    nombre: { type: "string", description: "Nuevo nombre (opcional)." },
+                    telefono: { type: "string", description: "Nuevo teléfono (opcional)." },
+                    alergias: { type: "string", description: "Nuevas alergias (opcional)." },
+                    padecimientos: { type: "string", description: "Nuevos padecimientos (opcional)." },
+                    email: { type: "string", description: "Nuevo email (opcional)." }
+                },
+                required: ["patient_id"]
+            }
+        }
     }
 ];
 
@@ -491,6 +510,20 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
 
                 if (error) throw error;
                 return { success: true, new_date: data.fecha, patient: (data.patients as any)?.nombre };
+            }
+
+            case 'update_patient': {
+                const { patient_id, ...updateFields } = args;
+                const { data, error } = await supabase
+                    .from('patients')
+                    .update(updateFields)
+                    .eq('id', patient_id)
+                    .eq('user_id', userId)
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                return { success: true, patient: data };
             }
 
             default:

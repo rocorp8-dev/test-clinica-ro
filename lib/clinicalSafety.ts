@@ -20,11 +20,17 @@ export interface ValidationResult {
 
 /**
  * Valida una respuesta de texto de la IA contra los datos clínicos reales detectados.
+ * @param data Datos clínicos reales.
+ * @param aiResponse Respuesta de la IA.
+ * @param doctorName Nombre del médico (personalización).
+ * @param isClinical Si es TRUE, se fuerza el bloque de alerta siempre que falte info clínica.
+ *                   Si es FALSE (Admin), solo alerta si la IA "alucina" que no hay riesgos cuando sí los hay.
  */
 export function validateClinicalSafety(
     data: ClinicalSafetyData[], 
     aiResponse: string,
-    doctorName: string = "Colega"
+    doctorName: string = "Colega",
+    isClinical: boolean = true
 ): ValidationResult {
     const alertsToVerify: string[] = [];
     
@@ -44,9 +50,9 @@ export function validateClinicalSafety(
 
     const responseLower = aiResponse.toLowerCase();
     
-    // Patrones que indican que el modelo "cree" que no hay nada
+    // Patrones que indican que el modelo "cree" que no hay nada (Hallucinación / False Affirmation)
     const claimEmptyPatterns = [
-        /\b(ninguna registrada|sin alergias|no tiene alergias|no se encontraron alergias|no se registran alergias|apto: sin alertas)\b/i,
+        /\b(ninguna registrada|sin alergias|no tiene alergias|no se encontraron alergias|no se registran alergias|apto: sin alertas|sin registros en sistema)\b/i,
         /\balergias:\s*(ninguna|no)\b/i
     ];
 
@@ -56,8 +62,22 @@ export function validateClinicalSafety(
         return !responseLower.includes(value);
     });
 
-    // Si el modelo dice que no hay nada PERO sí hay, o si falta una alerta crítica en la respuesta
-    const shouldWarn = (hasClaimOfEmpty && alertsToVerify.length > 0) || (missingAlerts.length > 0 && alertsToVerify.length > 0);
+    // REGLA DE VALIDACIÓN CONTEXTUAL:
+    // 1. Si el modelo MIENTE (dice que no hay nada pero sí hay) -> SIEMPRE WARN (isValid false)
+    // 2. Si el modelo OMITE (faltan alertas) -> Solo WARN si context es clínico.
+    
+    let shouldWarn = false;
+    let isValid = true;
+
+    if (hasClaimOfEmpty && alertsToVerify.length > 0) {
+        // Alucinación de "sin riesgos" -> Error crítico de integridad.
+        shouldWarn = true;
+        isValid = false;
+    } else if (isClinical && missingAlerts.length > 0) {
+        // Omisión en contexto clínico -> Precaución necesaria.
+        shouldWarn = true;
+        isValid = false;
+    }
 
     let suggestedWarning = null;
     if (shouldWarn) {
