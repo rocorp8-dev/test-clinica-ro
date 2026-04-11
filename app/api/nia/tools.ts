@@ -413,7 +413,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     .from('patients')
                     .insert([{ 
                         ...args, 
-                        doctor_id: userId 
+                        user_id: userId 
                     }])
                     .select()
                     .single();
@@ -423,7 +423,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'register_payment': {
-                // 1. Obtener datos de la cita
+                // 1. Obtener datos de la cita (usa doctor_id en appointments)
                 const { data: appt, error: aErr } = await supabase
                     .from('appointments')
                     .select('patient_id, doctor_id')
@@ -432,7 +432,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 
                 if (aErr || !appt) throw new Error('Cita no encontrada');
 
-                // 2. Insertar cobro
+                // 2. Insertar cobro (usa user_id en billing)
                 const { error: pErr } = await supabase
                     .from('billing')
                     .insert([{
