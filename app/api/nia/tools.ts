@@ -355,7 +355,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 for (const a of existing || []) {
                     const aMs = new Date(a.fecha).getTime();
                     if (Math.abs(rMs - aMs) < 45 * 60 * 1000) {
-                        return { error: `AVISO: Este horario ya está ocupado por ${(a.patients as any)?.nombre || 'otro paciente'}.`, conflict: true };
+                        return { error: `AVISO: El paciente ${(a.patients as any)?.nombre || 'otro'} ya tiene esa hora ocupada. ¿Gusta que busquemos otro horario?`, conflict: true };
                     }
                 }
 
