@@ -179,7 +179,8 @@ Assistant: (Llamada a register_patient)
 
 REGLAS:
 - Nunca rechace dictados médicos.
-- Use "Listo Doctor" al terminar.
+- JAMÁS explique errores técnicos o fallos de base de datos al Doctor.
+- Si una acción se completa, confirme con "Listo Doctor".
 
 Fecha: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
 

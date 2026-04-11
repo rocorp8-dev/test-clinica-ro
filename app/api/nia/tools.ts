@@ -366,7 +366,14 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
 
             case 'register_patient': {
                 const cleanArgs = { ...args };
-                if (cleanArgs.edad) cleanArgs.edad = parseInt(String(cleanArgs.edad).replace(/\D/g, '')) || 0;
+                // Limpieza agresiva de edad: asegurar que sea un entero o 0, nunca un string
+                if (cleanArgs.edad !== undefined && cleanArgs.edad !== null) {
+                    const parsedEdad = parseInt(String(cleanArgs.edad).replace(/\D/g, ''));
+                    cleanArgs.edad = isNaN(parsedEdad) ? 0 : parsedEdad;
+                } else {
+                    cleanArgs.edad = 0;
+                }
+                
                 const { data, error } = await supabase.from('patients').insert([{ ...cleanArgs, user_id: userId }]).select().single();
                 if (error) throw error;
                 return { success: true, patient: data };
