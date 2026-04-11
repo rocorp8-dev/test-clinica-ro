@@ -141,28 +141,6 @@ export const NIA_TOOLS = [
     {
         type: "function",
         function: {
-            name: "register_patient",
-            description: "Registra a un nuevo paciente en el sistema.",
-            parameters: {
-                type: "object",
-                properties: {
-                    nombre: { type: "string" },
-                    email: { type: "string" },
-                    telefono: { type: "string" },
-                    dni: { type: "string" },
-                    edad: { type: "number" },
-                    genero: { type: "string" },
-                    tipo_sangre: { type: "string" },
-                    alergias: { type: "string" },
-                    padecimientos: { type: "string" }
-                },
-                required: ["nombre"]
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
             name: "register_payment",
             description: "Registra un pago realizado por un paciente.",
             parameters: {
