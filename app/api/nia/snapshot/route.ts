@@ -95,7 +95,7 @@ ${JSON.stringify(medicalData)}
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "llama3.1-8b",
+                model: "llama3.1-70b",
                 messages: [{ role: "user", content: NIA_PROMPT }],
                 response_format: { type: "json_object" },
                 temperature: 0.1,
