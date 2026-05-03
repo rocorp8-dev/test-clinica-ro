@@ -10,7 +10,7 @@ export const maxDuration = 30;
 // Proveedor primario: Groq llama-3.3-70b (tool calling nativo, ~1s)
 // Fallback: Cerebras llama3.1-8b (rápido pero tool calling débil — tenemos fallback parser)
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
-const CEREBRAS_MODEL = 'llama3.1-70b';
+const CEREBRAS_MODEL = 'llama3.1-8b';
 
 async function callNiaAI(payload: Record<string, unknown>): Promise<{ ok: boolean; data: any }> {
     const groqKey = process.env.GROQ_API_KEY;
@@ -257,7 +257,7 @@ export async function POST(req: Request) {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: 'llama3.1-70b',
+                    model: 'llama3.1-8b',
                     messages: [
                         { role: 'system', content: getNiaSystemPrompt(doctorName) },
                         ...chatHistory
