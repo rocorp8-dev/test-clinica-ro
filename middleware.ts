@@ -23,11 +23,19 @@ export async function middleware(request: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
 
-    const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
+    // Rutas que no requieren login
+    const isPublic = request.nextUrl.pathname.startsWith('/login') ||
         request.nextUrl.pathname.startsWith('/register') ||
-        request.nextUrl.pathname.startsWith('/presentacion')
+        request.nextUrl.pathname.startsWith('/presentacion') ||
+        request.nextUrl.pathname.startsWith('/precios') ||
+        request.nextUrl.pathname.startsWith('/api/webhooks/') ||
+        request.nextUrl.pathname.startsWith('/admin')
 
-    if (!user && !isAuthPage) {
+    // Rutas de auth que redirigen al dashboard si ya estás logueado
+    const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
+        request.nextUrl.pathname.startsWith('/register')
+
+    if (!user && !isPublic) {
         return NextResponse.redirect(new URL('/login', request.url))
     }
 
