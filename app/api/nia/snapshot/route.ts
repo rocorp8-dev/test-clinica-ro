@@ -5,11 +5,6 @@ import { validateClinicalSafety } from '@/lib/clinicalSafety';
 
 export async function POST(req: Request) {
     try {
-        // Validate Cerebras API key
-        if (!process.env.CEREBRAS_API_KEY) {
-            console.error('Cerebras API key not configured');
-            return NextResponse.json({ error: 'Cerebras API key not configured' }, { status: 500 });
-        }
         const { patient_id } = await req.json();
         console.log('Generating snapshot for patient_id:', patient_id);
 
@@ -88,31 +83,80 @@ DATA BRUTA:
 ${JSON.stringify(medicalData)}
 `;
 
-        const response = await fetch("https://api.cerebras.ai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${process.env.CEREBRAS_API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: "llama3.1-8b",
-                messages: [{ role: "user", content: NIA_PROMPT }],
-                response_format: { type: "json_object" },
-                temperature: 0.1,
-            })
-        });
+        // Proveedor primario: Groq llama-3.3-70b (tool calling nativo, ~0.8s, estable)
+        // Fallback: OpenRouter mistral-large (Cerebras llama3.1-8b DECOMMISSIONED mayo 2026)
+        const GROQ_MODEL = 'llama-3.3-70b-versatile';
+        const OPENROUTER_FALLBACK = 'mistralai/mistral-large';
 
-        const data = await response.json();
-        // If the API returned an error, surface it immediately
-        if (!response.ok) {
-            console.error('NIA Snapshot Cerebras Error:', data);
+        let response;
+        let data;
+        let usedProvider = 'groq';
+
+        // Intentar Groq primero
+        const groqKey = process.env.GROQ_API_KEY;
+        if (groqKey) {
+            try {
+                response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${groqKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: GROQ_MODEL,
+                        messages: [{ role: "user", content: NIA_PROMPT }],
+                        response_format: { type: "json_object" },
+                        temperature: 0.1
+                    })
+                });
+                data = await response.json();
+                if (response.ok) {
+                    console.log('SNAP: usando Groq ✅');
+                } else {
+                    console.warn('SNAP: Groq error, fallback OpenRouter:', data?.error?.message);
+                    usedProvider = 'openrouter';
+                }
+            } catch (e) {
+                console.warn('SNAP: Groq excepción, fallback OpenRouter:', e);
+                usedProvider = 'openrouter';
+            }
+        } else {
+            usedProvider = 'openrouter';
+        }
+
+        // Fallback a OpenRouter si Groq falla o no está configurado
+        if (usedProvider === 'openrouter') {
+            const orKey = process.env.OPENROUTER_API_KEY;
+            if (!orKey) {
+                return NextResponse.json({ error: 'No AI provider configured (GROQ_API_KEY or OPENROUTER_API_KEY required)' }, { status: 500 });
+            }
+            response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${orKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: OPENROUTER_FALLBACK,
+                    messages: [{ role: "user", content: NIA_PROMPT }],
+                    response_format: { type: "json_object" },
+                    temperature: 0.1
+                })
+            });
+            data = await response.json();
+            console.log('SNAP: usando OpenRouter fallback' + (response!.ok ? ' ✅' : ' ❌'));
+        }
+
+        // Validar respuesta
+        if (!response!.ok) {
+            console.error('SNAP: AI Provider Error:', data);
             let message = 'AI Snapshot Error';
             if (data?.error) {
                 message = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
             } else if (data?.message) {
                 message = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);
             }
-            return NextResponse.json({ error: message }, { status: response.status });
+            return NextResponse.json({ error: message }, { status: response!.status });
         }
         // The OpenRouter response may already be a parsed object when using json_object format
         let snapshotResult;

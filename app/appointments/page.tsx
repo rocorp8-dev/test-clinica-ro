@@ -90,7 +90,36 @@ function AppointmentsContent() {
 
     useEffect(() => {
         loadAppointments()
-    }, [loadAppointments])
+
+        // 🚀 REAL-TIME: Suscripción a cambios en appointments para actualización automática
+        // Fix Error #3: Las citas ahora aparecen inmediatamente después de agendar
+        const setupRealtimeSubscription = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const channel = supabase
+                .channel('appointments-changes')
+                .on('postgres_changes',
+                    {
+                        event: '*',  // INSERT, UPDATE, DELETE
+                        schema: 'public',
+                        table: 'appointments',
+                        filter: `doctor_id=eq.${user.id}`
+                    },
+                    (payload) => {
+                        console.log('🔄 Appointment changed:', payload)
+                        loadAppointments()  // Recargar automáticamente
+                    }
+                )
+                .subscribe()
+
+            return () => {
+                supabase.removeChannel(channel)
+            }
+        }
+
+        setupRealtimeSubscription()
+    }, [loadAppointments, supabase])
 
     // Scroll a la cita destacada después de cargar
     useEffect(() => {

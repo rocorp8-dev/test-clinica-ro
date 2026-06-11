@@ -229,6 +229,16 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     const q = String(pParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
                     const { data: found } = await supabase.rpc('search_patients_nia', { search_query: `%${q}%`, doctor_id: userId });
                     if (!found?.length) return { error: `Paciente "${pParam}" no encontrado.` };
+
+                    // 🚨 SAFETY CRÍTICO: Detectar ambigüedad y pedir aclaración
+                    // En sistema médico NUNCA asumir paciente — riesgo de confusión fatal
+                    if (found.length > 1) {
+                        const names = found.map(p => `${p.nombre} (${p.dni || 'Sin DNI'})`).join(', ');
+                        return {
+                            error: `Encontré ${found.length} pacientes con "${pParam}": ${names}. Por favor especifica el DNI o nombre completo para evitar confusiones.`
+                        };
+                    }
+
                     pId = found[0].id;
                 }
 
@@ -289,6 +299,16 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     const q = String(pParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
                     const { data: found } = await supabase.rpc('search_patients_nia', { search_query: `%${q}%`, doctor_id: userId });
                     if (!found?.length) return { error: `Paciente "${pParam}" no encontrado.` };
+
+                    // 🚨 SAFETY CRÍTICO: Detectar ambigüedad y pedir aclaración
+                    // En sistema médico NUNCA asumir paciente — riesgo de confusión fatal
+                    if (found.length > 1) {
+                        const names = found.map(p => `${p.nombre} (${p.dni || 'Sin DNI'})`).join(', ');
+                        return {
+                            error: `Encontré ${found.length} pacientes con "${pParam}": ${names}. Por favor especifica el DNI o nombre completo para evitar confusiones.`
+                        };
+                    }
+
                     pId = found[0].id;
                 }
 
@@ -394,6 +414,16 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     const q = String(pParam).replace(/\b(de|la|el|los|las)\b/gi, '').trim();
                     const { data: found } = await supabase.rpc('search_patients_nia', { search_query: `%${q}%`, doctor_id: userId });
                     if (!found?.length) return { error: `Paciente "${pParam}" no encontrado.` };
+
+                    // 🚨 SAFETY CRÍTICO: Detectar ambigüedad y pedir aclaración
+                    // En sistema médico NUNCA asumir paciente — riesgo de confusión fatal
+                    if (found.length > 1) {
+                        const names = found.map(p => `${p.nombre} (${p.dni || 'Sin DNI'})`).join(', ');
+                        return {
+                            error: `Encontré ${found.length} pacientes con "${pParam}": ${names}. Por favor especifica el DNI o nombre completo para evitar confusiones.`
+                        };
+                    }
+
                     pId = found[0].id;
                 }
 
