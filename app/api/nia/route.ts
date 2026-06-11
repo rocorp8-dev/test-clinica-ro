@@ -28,7 +28,12 @@ async function callNiaAI(payload: Record<string, unknown>): Promise<{ ok: boolea
                 console.log('NIA: usando Groq ✅');
                 return { ok: true, data: d };
             }
-            console.error('NIA: Groq error HTTP', res.status, ':', JSON.stringify(d).slice(0, 200));
+            // Si es 429 (rate limit), ir directo a OpenRouter sin reintentar
+            if (res.status === 429) {
+                console.warn('NIA: Groq rate limit (429) - fallback a OpenRouter');
+            } else {
+                console.error('NIA: Groq error HTTP', res.status, ':', JSON.stringify(d).slice(0, 200));
+            }
         } catch (e) {
             console.error('NIA: Groq excepción:', e instanceof Error ? e.message : String(e));
         }
