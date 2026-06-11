@@ -233,7 +233,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     // 🚨 SAFETY CRÍTICO: Detectar ambigüedad y pedir aclaración
                     // En sistema médico NUNCA asumir paciente — riesgo de confusión fatal
                     if (found.length > 1) {
-                        const names = found.map(p => `${p.nombre} (${p.dni || 'Sin DNI'})`).join(', ');
+                        const names = found.map((p: any) => `${p.nombre} (${p.dni || 'Sin DNI'})`).join(', ');
                         return {
                             error: `Encontré ${found.length} pacientes con "${pParam}": ${names}. Por favor especifica el DNI o nombre completo para evitar confusiones.`
                         };
@@ -303,7 +303,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     // 🚨 SAFETY CRÍTICO: Detectar ambigüedad y pedir aclaración
                     // En sistema médico NUNCA asumir paciente — riesgo de confusión fatal
                     if (found.length > 1) {
-                        const names = found.map(p => `${p.nombre} (${p.dni || 'Sin DNI'})`).join(', ');
+                        const names = found.map((p: any) => `${p.nombre} (${p.dni || 'Sin DNI'})`).join(', ');
                         return {
                             error: `Encontré ${found.length} pacientes con "${pParam}": ${names}. Por favor especifica el DNI o nombre completo para evitar confusiones.`
                         };
@@ -418,7 +418,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     // 🚨 SAFETY CRÍTICO: Detectar ambigüedad y pedir aclaración
                     // En sistema médico NUNCA asumir paciente — riesgo de confusión fatal
                     if (found.length > 1) {
-                        const names = found.map(p => `${p.nombre} (${p.dni || 'Sin DNI'})`).join(', ');
+                        const names = found.map((p: any) => `${p.nombre} (${p.dni || 'Sin DNI'})`).join(', ');
                         return {
                             error: `Encontré ${found.length} pacientes con "${pParam}": ${names}. Por favor especifica el DNI o nombre completo para evitar confusiones.`
                         };
