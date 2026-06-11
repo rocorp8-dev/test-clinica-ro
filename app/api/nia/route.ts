@@ -8,9 +8,9 @@ import { validateClinicalSafety } from '@/lib/clinicalSafety';
 export const maxDuration = 30;
 
 // Proveedor primario: Groq llama-3.3-70b (tool calling nativo, ~1s)
-// Fallback: Cerebras llama3.1-8b (rápido pero tool calling débil — tenemos fallback parser)
+// Fallback: OpenRouter mistral-large (Cerebras llama3.1-8b retirado May 27 2026)
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
-const CEREBRAS_MODEL = 'llama3.1-8b';
+const OPENROUTER_FALLBACK_MODEL = 'mistralai/mistral-large';
 
 async function callNiaAI(payload: Record<string, unknown>): Promise<{ ok: boolean; data: any }> {
     const groqKey = process.env.GROQ_API_KEY;
@@ -23,16 +23,17 @@ async function callNiaAI(payload: Record<string, unknown>): Promise<{ ok: boolea
             });
             const d = await res.json();
             if (res.ok) { console.log('NIA: usando Groq ✅'); return { ok: true, data: d }; }
-            console.warn('NIA: Groq error, fallback Cerebras:', d?.error?.message);
+            console.warn('NIA: Groq error, fallback OpenRouter:', d?.error?.message);
         } catch (e) { console.warn('NIA: Groq excepción, fallback:', e); }
     }
-    const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+    const orKey = process.env.OPENROUTER_API_KEY;
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, model: CEREBRAS_MODEL }),
+        headers: { 'Authorization': `Bearer ${orKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, model: OPENROUTER_FALLBACK_MODEL }),
     });
     const d = await res.json();
-    console.log('NIA: usando Cerebras' + (res.ok ? ' ✅' : ' ❌'));
+    console.log('NIA: usando OpenRouter fallback' + (res.ok ? ' ✅' : ' ❌'));
     return { ok: res.ok, data: d };
 }
 
@@ -184,8 +185,6 @@ REGLAS DE OPERACIÓN:
 Fecha: ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
 
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-
 export async function POST(req: Request) {
     try {
         const { messages } = await req.json();
@@ -246,55 +245,29 @@ export async function POST(req: Request) {
         // Handle Tool Calls Loop history
         const chatHistory = [...messages];
 
-        // Initial AI Call with Tools
+        // Initial AI Call with Tools — usa Groq (primario) → OpenRouter (fallback)
         console.log('NIA: Starting AI request...');
-        let response;
-        try {
-            response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'llama3.1-8b',
-                    messages: [
-                        { role: 'system', content: getNiaSystemPrompt(doctorName) },
-                        ...chatHistory
-                    ],
-                    tools: NIA_TOOLS,
-                    tool_choice: 'auto'
-                })
-            });
-        } catch (e) {
-            console.error("Cerebras Fail:", e);
+        const initialResult = await callNiaAI({
+            messages: [
+                { role: 'system', content: getNiaSystemPrompt(doctorName) },
+                ...preFetchedMessages
+            ],
+            tools: NIA_TOOLS,
+            tool_choice: 'auto',
+            temperature: 0.1,
+        });
+
+        if (!initialResult.ok) {
+            console.error('NIA: Error en llamada inicial:', initialResult.data);
+            return NextResponse.json({ error: 'No se pudo conectar con el asistente. Intenta de nuevo.' }, { status: 503 });
         }
 
-        let data = response?.ok ? await response.json() : null;
+        let data = initialResult.data;
 
-        // Si Cerebras falla o el mensaje de usuario parece requerir herramienta y no la dio
-        const userAsksTool = chatHistory[chatHistory.length - 1].content.toLowerCase().match(/registra|agenda|cita|historial|expediente|cobra|pago/);
-
-        if (!data || (userAsksTool && !data.choices[0].message.tool_calls)) {
-            console.log("Activando Fallback OpenRouter...");
-            const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'mistralai/mistral-large',
-                    messages: [
-                        { role: 'system', content: getNiaSystemPrompt(doctorName) },
-                        ...chatHistory
-                    ],
-                    tools: NIA_TOOLS,
-                    tool_choice: 'auto'
-                })
-            });
-            data = await orRes.json();
-            console.log("Respuesta OpenRouter obtenida.");
+        // Validar que la respuesta tiene el formato esperado
+        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+            console.error('NIA: Respuesta de IA con formato inesperado:', JSON.stringify(data));
+            return NextResponse.json({ error: 'Respuesta inválida del asistente. Intenta de nuevo.' }, { status: 500 });
         }
 
         let message = data.choices[0].message;
