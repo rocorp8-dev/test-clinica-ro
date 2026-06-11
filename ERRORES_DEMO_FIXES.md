@@ -332,14 +332,18 @@ Agregar skeleton loaders en `/app/page.tsx`:
 
 Después de aplicar fixes:
 
-- [ ] Correr tests locales
-- [ ] Verificar que GROQ_API_KEY está en `.env.local` y Vercel
-- [ ] Deploy a Vercel
-- [ ] Smoke test en producción:
-  - [ ] Abrir expediente → SNAP funciona
+- [x] Correr tests locales ✅ (build exitoso)
+- [x] Verificar que GROQ_API_KEY está en `.env.local` y Vercel ✅
+- [x] Deploy a Vercel ✅ (https://mdpulso.vercel.app)
+- [ ] **PENDIENTE MANUAL**: Ejecutar migración SQL en Supabase:
+  - Ir a https://supabase.com/dashboard/project/xcthxudqelqjfbsupxwo/sql/new
+  - Ejecutar el contenido de `supabase/migrations/20260611_fix_dni_null.sql`
+  - Verificar que paciente "Roberto Gomez" ya no muestra DNI "null"
+- [ ] Smoke test en producción (VERIFICAR MANUALMENTE):
+  - [ ] Abrir expediente → SNAP funciona (debe responder en ~1s con Groq)
   - [ ] Preguntar a NIA por expediente → responde correctamente
-  - [ ] Agendar cita → aparece inmediatamente
-  - [ ] Verificar que no hay DNI "null" en pacientes
+  - [ ] Agendar cita → aparece inmediatamente (real-time subscription)
+  - [ ] Verificar que al buscar paciente ambiguo NIA pide aclaración
 
 ---
 
