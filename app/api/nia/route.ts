@@ -7,33 +7,58 @@ import { validateClinicalSafety } from '@/lib/clinicalSafety';
 // Vercel: aumentar timeout para tool call loops (default 10s es insuficiente)
 export const maxDuration = 30;
 
-// Proveedor primario: Groq llama-3.3-70b (tool calling nativo, ~1s)
-// Fallback: OpenRouter mistral-large (Cerebras llama3.1-8b retirado May 27 2026)
+// Proveedor primario: Groq llama-3.3-70b (tool calling nativo, ~1s, acepta términos médicos)
+// Fallback: OpenRouter llama-3.1-8b free tier (solo texto, sin tools pero estable)
+// Nota: mistral-large NO es free tier y causa errores 402/403 en OpenRouter
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
-const OPENROUTER_FALLBACK_MODEL = 'mistralai/mistral-large';
+const OPENROUTER_FALLBACK_MODEL = 'meta-llama/llama-3.1-8b-instruct:free';
 
 async function callNiaAI(payload: Record<string, unknown>): Promise<{ ok: boolean; data: any }> {
     const groqKey = process.env.GROQ_API_KEY;
     if (groqKey) {
         try {
+            console.log(`NIA: Intentando Groq con modelo ${GROQ_MODEL}...`);
             const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...payload, model: GROQ_MODEL }),
             });
             const d = await res.json();
-            if (res.ok) { console.log('NIA: usando Groq ✅'); return { ok: true, data: d }; }
-            console.warn('NIA: Groq error, fallback OpenRouter:', d?.error?.message);
-        } catch (e) { console.warn('NIA: Groq excepción, fallback:', e); }
+            if (res.ok) {
+                console.log('NIA: usando Groq ✅');
+                return { ok: true, data: d };
+            }
+            console.error('NIA: Groq error HTTP', res.status, ':', JSON.stringify(d).slice(0, 200));
+        } catch (e) {
+            console.error('NIA: Groq excepción:', e instanceof Error ? e.message : String(e));
+        }
+    } else {
+        console.warn('NIA: GROQ_API_KEY no encontrada, usando OpenRouter directamente');
     }
+
     const orKey = process.env.OPENROUTER_API_KEY;
+    if (!orKey) {
+        console.error('NIA: OPENROUTER_API_KEY tampoco encontrada');
+        return { ok: false, data: { error: { message: 'No AI provider configured' } } };
+    }
+
+    console.log(`NIA: Fallback a OpenRouter con modelo ${OPENROUTER_FALLBACK_MODEL}...`);
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${orKey}`, 'Content-Type': 'application/json' },
+        headers: {
+            'Authorization': `Bearer ${orKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://mdpulso.vercel.app',
+            'X-Title': 'MdPulso NIA'
+        },
         body: JSON.stringify({ ...payload, model: OPENROUTER_FALLBACK_MODEL }),
     });
     const d = await res.json();
-    console.log('NIA: usando OpenRouter fallback' + (res.ok ? ' ✅' : ' ❌'));
+    if (!res.ok) {
+        console.error('NIA: OpenRouter error HTTP', res.status, ':', JSON.stringify(d).slice(0, 200));
+    } else {
+        console.log('NIA: usando OpenRouter fallback ✅');
+    }
     return { ok: res.ok, data: d };
 }
 
