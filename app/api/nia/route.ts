@@ -337,8 +337,11 @@ export async function POST(req: Request) {
             }
 
             console.log('NIA: Sending tool results back to AI...');
+            // FIX: Truncar historial para evitar rate limit de Groq (max tokens/min)
+            // Solo enviar system prompt + últimas 10 interacciones (suficiente para contexto del loop)
+            const truncatedHistory = chatHistory.slice(-10);
             const loopResult = await callNiaAI({
-                messages: [{ role: 'system', content: systemPrompt }, ...chatHistory],
+                messages: [{ role: 'system', content: systemPrompt }, ...truncatedHistory],
                 tools: NIA_TOOLS,
                 tool_choice: 'auto',
                 temperature: 0.1,
