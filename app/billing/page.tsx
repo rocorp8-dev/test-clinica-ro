@@ -62,7 +62,7 @@ export default function BillingPage() {
                     payment_status,
                     notes,
                     created_at,
-                    patients (nombre)
+                    patients (nombre_completo)
                 `)
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false })
@@ -306,7 +306,7 @@ export default function BillingPage() {
                                         <div className="flex items-center gap-2">
                                             <span className="flex items-center gap-1 text-xs text-slate-500">
                                                 <User className="h-3 w-3" />
-                                                <span className="truncate max-w-[120px] md:max-w-none">{(r.patients as any)?.nombre || 'Paciente'}</span>
+                                                <span className="truncate max-w-[120px] md:max-w-none">{(r.patients as any)?.nombre_completo || 'Paciente'}</span>
                                             </span>
                                         </div>
                                         <p className="text-sm font-bold text-slate-900 truncate">{r.service_type}</p>
