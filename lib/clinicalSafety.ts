@@ -62,19 +62,27 @@ export function validateClinicalSafety(
         return !responseLower.includes(value);
     });
 
-    // REGLA DE VALIDACIÓN CONTEXTUAL:
-    // 1. Si el modelo MIENTE (dice que no hay nada pero sí hay) -> SIEMPRE WARN (isValid false)
-    // 2. Si el modelo OMITE (faltan alertas) -> Solo WARN si context es clínico.
-    
+    // REGLA DE VALIDACIÓN CONTEXTUAL (ACTUALIZADA):
+    // 1. Si el modelo MIENTE (dice que no hay nada pero sí hay) -> SIEMPRE WARN
+    // 2. Si hay ALERGIAS registradas -> SIEMPRE WARN (crítico de seguridad)
+    // 3. Si el modelo OMITE padecimientos -> Solo WARN si context es clínico
+
     let shouldWarn = false;
     let isValid = true;
+
+    const hasAlergias = alertsToVerify.some(a => a.startsWith('ALERGIA:'));
+    const missingAlergias = missingAlerts.filter(a => a.startsWith('ALERGIA:'));
 
     if (hasClaimOfEmpty && alertsToVerify.length > 0) {
         // Alucinación de "sin riesgos" -> Error crítico de integridad.
         shouldWarn = true;
         isValid = false;
+    } else if (hasAlergias && missingAlergias.length > 0) {
+        // Alergias SIEMPRE se deben mostrar (seguridad crítica), sin importar contexto.
+        shouldWarn = true;
+        isValid = false;
     } else if (isClinical && missingAlerts.length > 0) {
-        // Omisión en contexto clínico -> Precaución necesaria.
+        // Omisión de padecimientos en contexto clínico -> Precaución necesaria.
         shouldWarn = true;
         isValid = false;
     }
