@@ -132,6 +132,30 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
         }
     }
 
+    const handleNext = () => {
+        // Validar solo campos del tab actual antes de avanzar
+        const errs = validate()
+
+        // Filtrar solo errores relevantes al tab actual
+        const currentTabErrors: Record<string, string> = {}
+        if (tab === 'datos') {
+            const fieldsToCheck = ['nombre', 'dni', 'curp', 'telefono', 'email']
+            fieldsToCheck.forEach(field => {
+                if (errs[field]) currentTabErrors[field] = errs[field]
+            })
+        }
+
+        setFieldErrors(currentTabErrors)
+
+        if (Object.keys(currentTabErrors).length > 0) {
+            toast.error('Revisa los campos antes de continuar.')
+            return
+        }
+
+        // Si no hay errores, avanzar al siguiente tab
+        setTab(tab === 'datos' ? 'domicilio' : 'clinico')
+    }
+
     const tabs = [
         { id: 'datos',     label: 'Identificación' },
         { id: 'domicilio', label: 'Domicilio' },
@@ -330,7 +354,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
                                     </button>
                                 )}
                                 {tab !== 'clinico' ? (
-                                    <button type="button" onClick={() => setTab(tab === 'datos' ? 'domicilio' : 'clinico')}
+                                    <button type="button" onClick={handleNext}
                                         className="flex-1 rounded-2xl bg-slate-900 px-4 py-3.5 text-sm font-bold text-white hover:bg-slate-800 transition-all">
                                         Siguiente →
                                     </button>
