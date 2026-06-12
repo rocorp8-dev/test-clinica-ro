@@ -35,13 +35,40 @@ export default function PatientsPage() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            const { data } = await supabase
+            // Obtener pacientes
+            const { data: patientsData } = await supabase
                 .from('patients')
                 .select('*')
                 .eq('user_id', user.id)
                 .order('nombre')
 
-            setPatients(data || [])
+            if (!patientsData) {
+                setPatients([])
+                return
+            }
+
+            // Obtener última cita completada para cada paciente
+            const { data: lastVisits } = await supabase
+                .from('appointments')
+                .select('patient_id, fecha, hora')
+                .eq('user_id', user.id)
+                .eq('status', 'completada')
+                .order('fecha', { ascending: false })
+
+            // Mapear última visita a cada paciente
+            const patientsWithLastVisit = patientsData.map(patient => {
+                const lastVisit = lastVisits?.find(v => v.patient_id === patient.id)
+                return {
+                    ...patient,
+                    ultima_visita: lastVisit ? new Date(lastVisit.fecha).toLocaleDateString('es-MX', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                    }) : null
+                }
+            })
+
+            setPatients(patientsWithLastVisit)
         } catch (err) {
             toast.error('Error al cargar pacientes')
         } finally {
@@ -145,7 +172,11 @@ export default function PatientsPage() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-5">
-                                        <p className="text-sm text-slate-600 italic">No disponible</p>
+                                        {patient.ultima_visita ? (
+                                            <p className="text-sm text-slate-700 font-medium">{patient.ultima_visita}</p>
+                                        ) : (
+                                            <p className="text-sm text-slate-400 italic">Sin visitas</p>
+                                        )}
                                     </td>
                                     <td className="px-8 py-5 text-right">
                                         <div className="flex items-center justify-end gap-2">

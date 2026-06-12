@@ -64,16 +64,27 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
 
     const validate = () => {
         const errs: Record<string, string> = {}
-        if (!nombre.trim() || nombre.trim().length < 2)
-            errs.nombre = 'Mínimo 2 caracteres.'
-        if (!dni.trim() || dni.trim().length < 6)
-            errs.dni = 'Mínimo 6 caracteres.'
+
+        // Nombre: mínimo 2 palabras (nombre + apellido)
+        if (!nombre.trim() || nombre.trim().split(' ').filter(w => w).length < 2)
+            errs.nombre = 'Debe incluir nombre y apellido.'
+
+        // DNI/INE: entre 10-18 caracteres alfanuméricos (CURP format o INE)
+        if (!dni.trim() || dni.trim().length < 10 || dni.trim().length > 18)
+            errs.dni = 'DNI/INE debe tener entre 10-18 caracteres.'
+
+        // CURP: exactamente 18 caracteres con formato válido
         if (curp.trim() && !/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(curp.trim().toUpperCase()))
-            errs.curp = 'CURP inválido (18 caracteres).'
-        if (telefono.trim() && !/^\+?[\d\s\-\(\)]{7,15}$/.test(telefono))
-            errs.telefono = 'Formato inválido. Ej: +521234567890'
-        if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-            errs.email = 'Email inválido.'
+            errs.curp = 'CURP inválido (18 caracteres). Ej: MASP650320HDFRNR08'
+
+        // Teléfono mexicano: +52 seguido de 10 dígitos
+        if (telefono.trim() && !/^(\+52)?[\s\-]?\d{10}$/.test(telefono.replace(/[\s\-\(\)]/g, '')))
+            errs.telefono = 'Teléfono inválido. Formato: +52 5512345678 o 5512345678'
+
+        // Email: formato estándar
+        if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
+            errs.email = 'Email inválido. Ej: doctor@ejemplo.com'
+
         return errs
     }
 

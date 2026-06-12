@@ -92,6 +92,23 @@ export default function BillingPage() {
 
     useEffect(() => { loadBilling() }, [loadBilling])
 
+    // Real-time subscription para actualizar cobros instantáneamente
+    useEffect(() => {
+        const channel = supabase
+            .channel('billing-realtime')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'billing'
+            }, () => {
+                console.log('Billing real-time: nuevo cobro detectado, recargando...')
+                loadBilling()
+            })
+            .subscribe()
+
+        return () => { supabase.removeChannel(channel) }
+    }, [supabase, loadBilling])
+
     // Stats
     const totalRevenue = records.reduce((sum, r) => sum + Number(r.amount), 0)
     const byMethod = records.reduce((acc: Record<string, number>, r) => {

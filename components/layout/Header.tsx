@@ -188,7 +188,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     <button
                         data-testid="bell-btn"
                         onClick={() => setShowPanel(v => !v)}
-                        className="relative rounded-2xl p-2 md:p-2.5 text-slate-500 hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all active:scale-95"
+                        className="relative rounded-2xl p-2 md:p-2.5 text-slate-500 hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all active:scale-95 group"
+                        title={unread > 0 ? `${unread} notificación${unread > 1 ? 'es' : ''} pendiente${unread > 1 ? 's' : ''}` : 'Sin notificaciones pendientes'}
+                        aria-label={`Notificaciones (${unread} sin leer)`}
                     >
                         <Bell className="h-5 w-5" />
                         {unread > 0 && (
