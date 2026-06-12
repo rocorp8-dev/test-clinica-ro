@@ -438,6 +438,16 @@ export async function POST(req: Request) {
             const userMessage = chatHistory[chatHistory.length - 1]?.content || '';
             const isAction = /agenda|agendar|cita|nota|cobro|registra/i.test(userMessage);
 
+            console.log('🔍 NIA DEBUG:', {
+                isTooShort,
+                hasRecordTool,
+                userAskedRecord,
+                isAction,
+                userMessage: userMessage.substring(0, 100),
+                contentLength: content.length,
+                willReplace: isTooShort && (hasRecordTool || userAskedRecord) && !isAction
+            });
+
             // Si la respuesta es mediocre ante una petición de expediente Y NO es una acción, inyectar el formato por la fuerza
             if (isTooShort && (hasRecordTool || userAskedRecord) && !isAction) {
                 data.choices[0].message.content = `📌 SNAPSHOT CLÍNICO: Datos recuperados del sistema.\n\n🚨 ALERTAS DE SEGURIDAD: No se detectan alergias graves registradas para este paciente.\n\n💡 SUGERENCIA OPERATIVA: El expediente está limpio. Puede proceder con la actualización de notas o agenda.`;
