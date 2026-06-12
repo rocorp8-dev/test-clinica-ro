@@ -421,7 +421,11 @@ export async function POST(req: Request) {
         const safety = validateClinicalSafety(clinicalData, finalText, doctorName, isClinical);
         if (!safety.isValid && safety.suggestedWarning) {
             console.warn('NIA 🛑: SAFETY VIOLATION (Contextual):', safety.missingInResponse);
-            return NextResponse.json({ choices: [{ message: { role: 'assistant', content: safety.suggestedWarning } }] });
+            // FIX: En lugar de reemplazar la respuesta, AGREGAR la alerta al final
+            // para que el médico vea TANTO la confirmación de la acción COMO la alerta
+            const currentContent = data?.choices?.[0]?.message?.content || '';
+            const combinedContent = currentContent.trim() + '\n\n' + safety.suggestedWarning;
+            return NextResponse.json({ choices: [{ message: { role: 'assistant', content: combinedContent } }] });
         }
 
         if (data?.choices?.[0]?.message?.content) {

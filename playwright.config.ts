@@ -2,22 +2,36 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
     testDir: './tests',
-    fullyParallel: true,
+    fullyParallel: false,
     forbidOnly: !!process.env.CI,
-    retries: process.env.CI ? 2 : 0,
-    workers: process.env.CI ? 1 : undefined,
-    reporter: 'list',
-    timeout: 60000,
+    retries: process.env.CI ? 1 : 0,
+    workers: 1,
+    timeout: 45000,
+
+    reporter: [
+        ['list'],
+        ['json', { outputFile: 'qa-reports/results.json' }],
+        ['html', { outputFolder: 'qa-reports/html', open: 'never' }],
+    ],
+
     use: {
-        baseURL: 'http://localhost:3009',
-        trace: 'on-first-retry',
+        baseURL: process.env.QA_BASE_URL || 'http://localhost:3009',
+        trace: 'retain-on-failure',
+        screenshot: 'only-on-failure',
+        video: 'retain-on-failure',
         actionTimeout: 15000,
-        navigationTimeout: 60000,
+        navigationTimeout: 30000,
     },
+
     projects: [
         {
-            name: 'chromium',
+            name: 'Desktop Chrome',
             use: { ...devices['Desktop Chrome'] },
+        },
+        {
+            name: 'iPhone 14',
+            use: { ...devices['iPhone 14'] },
+            testMatch: ['**/mobile.spec.ts'],
         },
     ],
 });

@@ -7,6 +7,12 @@
 # testing
 /coverage
 
+# QA Engine outputs
+/qa-reports/
+/test-results/
+/playwright-report/
+/blob-report/
+
 # next.js
 /.next/
 /out/

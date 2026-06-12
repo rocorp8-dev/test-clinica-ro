@@ -1,12 +1,12 @@
-# CONFIG: TEST-CLINICA
+# CONFIG: MDPULSO
 
 ## IDENTIDAD
-- **Nombre:** Test Clínica SaaS
-- **Tagline:** "Gestión médica simplificada y eficiente"
+- **Nombre:** MDPulso
+- **Tagline:** "El sistema operativo de tu práctica médica"
 - **Tipo:** SaaS B2B / Dashboard Médico
-- **Favicon letra:** C
+- **Favicon letra:** M
 - **Color primario:** emerald
-- **Repo name:** test-clinica-saas
+- **Repo name:** mdpulso
 
 ## CREDENCIALES DEMO
 - **Email:** admin@testclinica.com
@@ -42,6 +42,12 @@ CREATE TABLE citas (
   estado text DEFAULT 'pendiente',
   created_at timestamptz DEFAULT now()
 );
+
+## PAGOS (SPEI)
+- **CLABE:** 012180015011204196
+- **Banco:** BBVA
+- **Titular:** Rodolfo Perez Figueroa
+- **Soporte:** despacho9@gmail.com
 
 ## DATOS SEMILLA
 - 1 Paciente: Juan Pérez (DNI: 12345678X)

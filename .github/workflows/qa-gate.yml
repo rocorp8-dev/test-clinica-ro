@@ -1,0 +1,107 @@
+name: 🧪 QA Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:   # Ejecución manual desde GitHub UI
+
+jobs:
+  qa:
+    name: QA Engine — E2E + UX Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      QA_BASE_URL: http://localhost:3009
+      QA_EMAIL: ${{ secrets.QA_EMAIL }}
+      QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📦 Instalar dependencias
+        run: npm ci
+
+      - name: 🎭 Instalar Playwright Browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: 🔑 Crear .env.local para CI
+        run: |
+          echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> .env.local
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> .env.local
+
+      - name: 🚀 Levantar servidor Next.js
+        run: |
+          npm run dev -- --port 3009 &
+          echo "Esperando servidor..."
+          for i in {1..30}; do
+            sleep 2
+            if curl -s http://localhost:3009 > /dev/null; then
+              echo "✅ Servidor listo (${i}x2s)"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "❌ Timeout: servidor no respondió"
+              exit 1
+            fi
+          done
+
+      - name: 🧪 Correr QA Engine (E2E + UX + Forms + Auth)
+        run: |
+          npx playwright test \
+            tests/auth.spec.ts \
+            tests/happy-path.spec.ts \
+            tests/forms.spec.ts \
+            tests/temporal.spec.ts \
+            tests/ux-audit.spec.ts \
+            --reporter=list,json
+        continue-on-error: false
+
+      - name: 📊 Generar Dashboard HTML
+        if: always()
+        run: |
+          mkdir -p qa-reports
+          node scripts/qa-report.js qa-reports/results.json ${{ github.event.repository.name }}
+
+      - name: 📤 Subir Reporte como Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-report-${{ github.run_number }}
+          path: |
+            qa-reports/dashboard.html
+            qa-reports/results.json
+          retention-days: 30
+
+      - name: 📸 Subir Screenshots de Fallos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-screenshots-${{ github.run_number }}
+          path: test-results/
+          retention-days: 7
+
+      - name: 📣 Notificar Telegram (solo en fallo)
+        if: failure() && env.TELEGRAM_BOT_TOKEN != ''
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MSG="❌ *QA FALLÓ — ${{ github.repository }}*
+          Branch: \`${{ github.ref_name }}\`
+          Commit: \`${{ github.sha }}\`
+          Actor: ${{ github.actor }}
+          [Ver logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\":\"${TELEGRAM_CHAT_ID}\",\"text\":\"${MSG}\",\"parse_mode\":\"Markdown\"}"

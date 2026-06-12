@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { X, User, CreditCard, Phone, MapPin, Heart, Calendar, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
@@ -48,6 +48,17 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
     const [tab, setTab]             = useState<'datos' | 'domicilio' | 'clinico'>('datos')
     const [loading, setLoading]     = useState(false)
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+    // Reset completo al cerrar el modal
+    useEffect(() => {
+        if (!isOpen) {
+            setNombre(''); setDni(''); setCurp(''); setTelefono(''); setEmail('')
+            setFechaNac(''); setSexo(''); setEstadoCivil(''); setOcupacion('')
+            setDomicilio(''); setCiudad(''); setEstado(''); setCp('')
+            setTipoSangre(''); setAlergias(''); setPadecimientos('')
+            setTab('datos'); setFieldErrors({}); setLoading(false)
+        }
+    }, [isOpen])
 
     const clearErr = (k: string) => setFieldErrors(p => ({ ...p, [k]: '' }))
 

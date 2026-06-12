@@ -6,7 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "qa": "bash scripts/qa-engine.sh --open",
+    "qa:ci": "bash scripts/qa-engine.sh --no-server",
+    "qa:auth": "npx playwright test tests/auth.spec.ts --reporter=list",
+    "qa:happy": "npx playwright test tests/happy-path.spec.ts --reporter=list",
+    "qa:forms": "npx playwright test tests/forms.spec.ts --reporter=list",
+    "qa:ux": "npx playwright test tests/ux-audit.spec.ts --reporter=list",
+    "qa:mobile": "npx playwright test tests/mobile.spec.ts --project='iPhone 14' --reporter=list",
+    "qa:report": "node scripts/qa-report.js qa-reports/results.json test-clinica"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",
@@ -25,6 +33,7 @@
     "tailwind-merge": "^3.4.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
     "@playwright/test": "^1.58.2",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20.19.33",

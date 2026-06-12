@@ -1,19 +1,19 @@
-# CLAUDE.md — test-clinica
+# CLAUDE.md — MDPulso
 
 > Contexto ligero generado por HAM (Hierarchical Agent Memory).
 > Archivo canónico completo en: /Users/ro/Documents/RoSaas/template/.claude/
 
 ## Identidad del Proyecto
 
-# CONFIG: TEST-CLINICA
+# CONFIG: MDPULSO
 
 ## IDENTIDAD
-- **Nombre:** Test Clínica SaaS
-- **Tagline:** "Gestión médica simplificada y eficiente"
+- **Nombre:** MDPulso
+- **Tagline:** "El sistema operativo de tu práctica médica"
 - **Tipo:** SaaS B2B / Dashboard Médico
-- **Favicon letra:** C
+- **Favicon letra:** M
 - **Color primario:** emerald
-- **Repo name:** test-clinica-saas
+- **Repo name:** mdpulso
 
 ## CREDENCIALES DEMO
 - **Email:** admin@testclinica.com
