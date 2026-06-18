@@ -1,11 +1,21 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 // GET /api/growth?patient_id=xxx - Obtener mediciones de un paciente
 export async function GET(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: (cookies) => cookies.forEach(({ name, value, options}) => cookieStore.set(name, value, options))
+        }
+      }
+    )
     const { searchParams } = new URL(request.url)
     const patient_id = searchParams.get('patient_id')
 
@@ -39,7 +49,17 @@ export async function GET(request: Request) {
 // POST /api/growth - Crear nueva medición
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: (cookies) => cookies.forEach(({ name, value, options}) => cookieStore.set(name, value, options))
+        }
+      }
+    )
     const body = await request.json()
 
     const {
@@ -123,7 +143,17 @@ export async function POST(request: Request) {
 // DELETE /api/growth - Eliminar medición
 export async function DELETE(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: (cookies) => cookies.forEach(({ name, value, options}) => cookieStore.set(name, value, options))
+        }
+      }
+    )
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 
