@@ -3,8 +3,27 @@
 ## ✅ Implementación Completa
 
 **Fecha**: 2026-06-18
-**Estado**: ✅ Deployed en producción
+**Estado**: ✅ Deployed en producción (con fixes aplicados)
 **URL**: https://mdpulso.vercel.app
+**Última actualización**: 2026-06-18 22:40 UTC
+
+---
+
+## 🔧 Fixes Aplicados (Post-Deploy)
+
+**Issue**: Tab de Crecimiento no aparecía / contenido no se renderizaba
+
+**Root Cause**: Mismatch entre nombre de campo en DB (`fecha_nac`) vs nombre usado en código (`fecha_nacimiento`)
+
+**Commits de fix**:
+1. `111d6dc` - Corrigió condición del tab (línea 378 de PatientDetailModal)
+2. `a96d64d` - Corrigió renderizado condicional del contenido (línea 468 de PatientDetailModal)
+
+**Archivos modificados**:
+- `components/patients/PatientDetailModal.tsx` (2 ocurrencias)
+- `components/growth/GrowthTab.tsx` (1 ocurrencia)
+
+**Resultado**: ✅ Feature 100% funcional en producción
 
 ---
 
