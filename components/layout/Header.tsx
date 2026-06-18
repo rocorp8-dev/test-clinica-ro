@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import Image from 'next/image'
-import { Bell, Search, User, Sparkles, Menu, Calendar, Clock, CheckCircle, X } from 'lucide-react'
+import { Bell, Search, User, Sparkles, Menu, Calendar, Clock, CheckCircle, X, Brain } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import NiaHeaderPanel from './NiaHeaderPanel'
 
 interface Notification {
     id: string
@@ -25,7 +26,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
     const [userName, setUserName] = useState<string>('Cargando...')
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [showPanel, setShowPanel] = useState(false)
+    const [showNiaPanel, setShowNiaPanel] = useState(false)
     const panelRef = useRef<HTMLDivElement>(null)
+    const niaPanelRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
 
     const supabase = createBrowserClient(
@@ -39,6 +42,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
         const handleClickOutside = (e: MouseEvent) => {
             if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
                 setShowPanel(false)
+            }
+            if (niaPanelRef.current && !niaPanelRef.current.contains(e.target as Node)) {
+                setShowNiaPanel(false)
             }
         }
         document.addEventListener('mousedown', handleClickOutside)
@@ -184,21 +190,38 @@ export default function Header({ onMenuClick }: HeaderProps) {
             </div>
 
             <div className="flex items-center gap-3 md:gap-6">
-                <div className="relative flex gap-1 md:gap-2" ref={panelRef}>
-                    <button
-                        data-testid="bell-btn"
-                        onClick={() => setShowPanel(v => !v)}
-                        className="relative rounded-2xl p-2 md:p-2.5 text-slate-500 hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all active:scale-95 group"
-                        title={unread > 0 ? `${unread} notificación${unread > 1 ? 'es' : ''} pendiente${unread > 1 ? 's' : ''}` : 'Sin notificaciones pendientes'}
-                        aria-label={`Notificaciones (${unread} sin leer)`}
-                    >
-                        <Bell className="h-5 w-5" />
-                        {unread > 0 && (
-                            <span className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center text-[9px] font-black text-white">
-                                {unread > 9 ? '9+' : unread}
-                            </span>
-                        )}
-                    </button>
+                <div className="relative flex gap-1 md:gap-2">
+                    {/* NIA Button */}
+                    <div className="relative" ref={niaPanelRef}>
+                        <button
+                            onClick={() => setShowNiaPanel(v => !v)}
+                            className="relative rounded-2xl p-2 md:p-2.5 text-emerald-600 hover:bg-emerald-50 border border-transparent hover:border-emerald-100 transition-all active:scale-95 group"
+                            title="NIA - Copiloto Clínico"
+                            aria-label="Abrir NIA Asistente"
+                        >
+                            <Brain className="h-5 w-5" />
+                            <span className="absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full bg-emerald-500 border border-white" />
+                        </button>
+
+                        <NiaHeaderPanel isOpen={showNiaPanel} onClose={() => setShowNiaPanel(false)} />
+                    </div>
+
+                    {/* Notifications Button */}
+                    <div className="relative" ref={panelRef}>
+                        <button
+                            data-testid="bell-btn"
+                            onClick={() => setShowPanel(v => !v)}
+                            className="relative rounded-2xl p-2 md:p-2.5 text-slate-500 hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all active:scale-95 group"
+                            title={unread > 0 ? `${unread} notificación${unread > 1 ? 'es' : ''} pendiente${unread > 1 ? 's' : ''}` : 'Sin notificaciones pendientes'}
+                            aria-label={`Notificaciones (${unread} sin leer)`}
+                        >
+                            <Bell className="h-5 w-5" />
+                            {unread > 0 && (
+                                <span className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center text-[9px] font-black text-white">
+                                    {unread > 9 ? '9+' : unread}
+                                </span>
+                            )}
+                        </button>
 
                     <AnimatePresence>
                         {showPanel && (

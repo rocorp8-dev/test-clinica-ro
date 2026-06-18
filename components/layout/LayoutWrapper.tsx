@@ -12,7 +12,6 @@ const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 import { useState } from 'react'
 
 import MobileNav from "@/components/layout/MobileNav";
-import NiaAssistant from "@/components/layout/NiaAssistant";
 
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
@@ -38,7 +37,6 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
                 </main>
             </div>
             <MobileNav />
-            <NiaAssistant />
             <Toaster position="bottom-center" richColors closeButton />
         </body>
     )
