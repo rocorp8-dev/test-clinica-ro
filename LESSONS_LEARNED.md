@@ -220,6 +220,91 @@ Guardar en tabla `brand_styles` con RLS (owner access). El `prompt_prefix` es el
 
 **#90 — Error handler consumía request duplicados en Serverless**: No intentes clonar o volver a leer el body de un `NextRequest` en el bloque `catch` para extraer IDs en caso de fallos. El buffer de streaming puede ya no estar disponible y fallar silenciosamente. Lee y almacena variables clave (como `meetingId`) al inicio absoluto de la API, fuera del try-catch, para poder usarlas de forma segura en las llamadas de recuperación en base de datos.
 
+## Sistemas de Memoria y RAG
+
+**#95 — Contexto de memoria en USER MESSAGE, no system prompt**: Cuando implementes sistemas de memoria/RAG para prevenir repetición de contenido, el contexto DEBE ir en el user message, no al final del system prompt.
+
+**Implementación correcta** (D9 Squad Studio orchestrator.ts):
+```typescript
+// Fetch de campañas previas
+const prevContent = await fetchPreviousCampaigns(clientSlug, 3)
+
+// Contexto visual fuerte con emojis y separadores
+const memoryContext = prevContent ? `
+🚨🚨🚨 ALERTA CRÍTICA — CONTENIDO PREVIO DETECTADO 🚨🚨🚨
+
+Ya generaste ${prevContent.copys.length} posts para este cliente.
+Si repites ideas, ángulos o copys similares, el cliente RECHAZARÁ la campaña.
+
+═══════════════════════════════════════════════════════════════════════
+COPYS ANTERIORES QUE NO PUEDES REPETIR:
+═══════════════════════════════════════════════════════════════════════
+${prevContent.copys.slice(0, 5).map((c, i) => `${i + 1}. "${c}"`).join('\n\n')}
+
+🔥 OBLIGATORIO PARA ESTA NUEVA CAMPAÑA:
+• ÁNGULOS OPUESTOS: Si antes close-up → ahora wide shot, aerial
+• HORA DEL DÍA DIFERENTE: Si antes golden hour → ahora blue hour, night
+• ESCENARIOS NUEVOS: Si antes interior → ahora exterior
+• HOOKS DISTINTOS: Si antes pregunta → ahora dato, objeción, testimonial
+` : ''
+
+// INYECTAR EN USER MESSAGE, no system prompt
+const response = await callLLM(
+  systemPrompt,  // Sin memoria aquí
+  `${memoryContext}BRIEF: "${input.brief}"...`  // Memoria aquí
+)
+```
+
+**Reglas de oro**:
+1. User message > System prompt para contexto crítico
+2. Contexto visual fuerte: emojis 🚨, separadores ═══
+3. Instrucciones categóricas por dimensión
+4. Parser robusto con fallbacks multi-formato
+5. Límites explícitos + ejemplos buenos/malos
+
+## Extended Thinking y Model Selection
+
+**#97 — Extended Thinking para tasks complejas reduce costo total**: Opus 4.5 cuesta 67% más por token pero usa **76% menos tokens** en tasks complejas. Activar Extended Thinking cuando:
+- Usuario reporta error 3+ veces (iteraciones fallidas)
+- Feature afecta 5+ archivos (arquitectura multi-capa)
+- Schema DB con RLS (seguridad crítica)
+- Agente LLM con tool calling (orquestación compleja)
+- Usuario pide explícitamente "piensa antes de actuar"
+
+**Thinking budget según complejidad**:
+```typescript
+const modelConfig = {
+  // Error recovery: analizar qué falló y por qué
+  errorRecovery: {
+    model: "claude-opus-4-5-20251101",
+    thinking: { type: "enabled", budget_tokens: 10000 }
+  },
+
+  // Feature multi-archivo: planear arquitectura
+  featureBuilder: {
+    model: "claude-opus-4-5-20251101",
+    thinking: { type: "enabled", budget_tokens: 12000 }
+  },
+
+  // Schema DB + RLS: validar seguridad exhaustivamente
+  securityCritical: {
+    model: "claude-opus-4-5-20251101",
+    thinking: { type: "enabled", budget_tokens: 15000 }
+  },
+
+  // UI simple: no requiere razonamiento profundo
+  simpleUI: {
+    model: "claude-sonnet-4-5-20250929"
+  }
+}
+```
+
+**Impacto real**:
+- Sonnet iterando 3x: 6M tokens × $18/M = $108
+- Opus 1x con thinking: 515k tokens × $30/M = $38 (**65% ahorro**)
+
+**Regla de oro**: Si la task tiene score de complejidad >= 5 (ver `template/.claude/prompts/model-router.md`), usar Opus + Extended Thinking. El costo por token es mayor, pero el costo por task completada es MENOR.
+
 ## Ver tambien
 
 - Supabase SERVICE_ROLE_KEY faltante (#66), RLS para bots (#35) -> `skills/lessons-supabase/SKILL.md`
@@ -230,6 +315,6 @@ Guardar en tabla `brand_styles` con RLS (owner access). El `prompt_prefix` es el
 
 ---
 
-> **Nota**: Este archivo contiene 48 lecciones filtradas para mdpulso.
+> **Nota**: Este archivo contiene 50 lecciones filtradas para mdpulso.
 > Para el índice completo de todas las lecciones de la factoría:
 > `template/.claude/prompts/lessons-learned.md` (88 lecciones en 6 dominios)

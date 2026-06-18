@@ -143,7 +143,7 @@ export default function NiaAssistant() {
     }
 
     return (
-        <div className="fixed bottom-20 right-4 z-[60] sm:bottom-6 sm:right-6 flex flex-col items-end">
+        <div className="fixed bottom-24 left-6 z-[60] flex flex-col items-start md:bottom-8 md:left-8">
             <AnimatePresence>
                 {isOpen && (
                     <motion.div

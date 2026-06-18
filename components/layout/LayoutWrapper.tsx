@@ -30,8 +30,8 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
 
     return (
         <body className={`${inter.variable} ${outfit.variable} antialiased bg-slate-50 text-slate-900 font-sans`}>
-            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-            <div className="md:pl-72 flex flex-col min-h-screen">
+            {/* Sidebar oculto permanentemente - solo topbar + mobile nav */}
+            <div className="flex flex-col min-h-screen">
                 <Header onMenuClick={() => setIsSidebarOpen(true)} />
                 <main className="flex-1 p-4 pb-24 md:p-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
                     {children}

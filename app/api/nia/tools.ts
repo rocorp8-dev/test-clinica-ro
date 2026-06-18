@@ -203,19 +203,33 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                     .replace(/\s+/g, ' ').trim();
 
-                const { data, error } = await supabase.rpc('search_patients_nia', {
+                console.log(`[NIA Search] Original: "${args.query}" → Cleaned: "${cleanQuery}"`);
+
+                // Intento 1: RPC optimizado
+                const { data: rpcData, error: rpcError } = await supabase.rpc('search_patients_nia', {
                     search_query: `%${cleanQuery}%`,
                     doctor_id: userId
                 });
 
-                if (error) throw error;
-                
-                const enrichedData = await Promise.all((data || []).map(async (p: any) => {
-                    const { data: pData } = await supabase.from('patients').select('alergias, padecimientos, tipo_sangre').eq('id', p.id).single();
-                    return { ...p, ...pData };
-                }));
+                // Intento 2: Si RPC falla o no encuentra nada, búsqueda directa como fallback
+                let finalData = rpcData;
+                if (rpcError || !rpcData || rpcData.length === 0) {
+                    console.log('[NIA Search] RPC falló o vacío, intentando búsqueda directa...');
+                    const { data: directData } = await supabase
+                        .from('patients')
+                        .select('id, nombre, dni, alergias, padecimientos, tipo_sangre')
+                        .eq('user_id', userId)
+                        .or(`nombre.ilike.%${cleanQuery}%,dni.ilike.%${cleanQuery}%`)
+                        .order('nombre')
+                        .limit(10);
+                    finalData = directData;
+                }
 
-                return enrichedData;
+                if (!finalData || finalData.length === 0) {
+                    return { error: `No encontré ningún paciente con "${args.query}". ¿Está registrado en el sistema?`, empty: true };
+                }
+
+                return finalData;
             }
 
             case 'get_patient_complete_history': {
@@ -340,6 +354,14 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     pId = found[0].id;
                 }
 
+                // Obtener duración de citas del doctor
+                const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('appointment_duration')
+                    .eq('id', userId)
+                    .single();
+                const appointmentDuration = profile?.appointment_duration || 60; // Default 60 min
+
                 let dStr = args.fecha.trim();
                 if (!dStr.includes('+') && !dStr.includes('Z')) dStr += '-06:00';
                 const rDate = new Date(dStr);
@@ -352,8 +374,8 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 const rMs = rDate.getTime();
                 for (const a of existing || []) {
                     const aMs = new Date(a.fecha).getTime();
-                    if (Math.abs(rMs - aMs) < 45 * 60 * 1000) {
-                        return { error: `AVISO: El paciente ${(a.patients as any)?.nombre || 'otro'} ya tiene esa hora ocupada. ¿Gusta que busquemos otro horario?`, conflict: true };
+                    if (Math.abs(rMs - aMs) < appointmentDuration * 60 * 1000) {
+                        return { error: `AVISO: El paciente ${(a.patients as any)?.nombre || 'otro'} ya tiene esa hora ocupada. Cada consulta dura ${appointmentDuration} min. ¿Gusta que busquemos otro horario?`, conflict: true };
                     }
                 }
 
@@ -387,6 +409,14 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
             }
 
             case 'reschedule_appointment': {
+                // Obtener duración de citas del doctor
+                const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('appointment_duration')
+                    .eq('id', userId)
+                    .single();
+                const appointmentDuration = profile?.appointment_duration || 60;
+
                 let dStr = args.nueva_fecha.trim();
                 if (!dStr.includes('+') && !dStr.includes('Z')) dStr += '-06:00';
                 const rDate = new Date(dStr);
@@ -396,7 +426,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
 
                 const rMs = rDate.getTime();
                 for (const a of existing || []) {
-                    if (Math.abs(rMs - new Date(a.fecha).getTime()) < 45 * 60 * 1000) return { error: 'Horario ocupado.' };
+                    if (Math.abs(rMs - new Date(a.fecha).getTime()) < appointmentDuration * 60 * 1000) return { error: 'Horario ocupado.' };
                 }
 
                 const { data, error } = await supabase.from('appointments').update({ fecha: dStr }).eq('id', args.appointment_id).select('id, fecha').single();

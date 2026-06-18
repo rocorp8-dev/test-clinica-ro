@@ -45,6 +45,7 @@ function AppointmentsContent() {
     const [selectedAppointment, setSelectedAppointment] = useState<any>(null)
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
     const [checkoutAppointment, setCheckoutAppointment] = useState<any>(null)
+    const [appointmentDuration, setAppointmentDuration] = useState(60) // Default 60 min
     const highlightRef = useRef<HTMLDivElement>(null)
 
     const supabase = createBrowserClient(
@@ -53,19 +54,37 @@ function AppointmentsContent() {
     )
 
     // FUNCIÓN CLAVE: Normaliza cualquier fecha a formato "Solo Fecha" (YYYY-MM-DD)
-    // para comparaciones seguras sin zonas horarias
+    // CDMX timezone para evitar shift UTC
     const getLocalDateString = (date: Date | string) => {
-        const d = new Date(date);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        const d = typeof date === 'string' ? new Date(date) : date;
+        return d.toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+    };
+
+    // Función para obtener rango UTC de un día completo en CDMX
+    const cdmxDayRangeUTC = (dateStr?: string) => {
+        const localStr = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+        return {
+            start: new Date(`${localStr}T00:00:00-06:00`).toISOString(),
+            end: new Date(`${localStr}T23:59:59-06:00`).toISOString(),
+            localDate: localStr
+        };
     };
 
     const loadAppointments = useCallback(async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
+
+            // Cargar duración de citas del doctor
+            const { data: profile } = await supabase
+                .from('user_profiles')
+                .select('appointment_duration')
+                .eq('id', user.id)
+                .single()
+
+            if (profile?.appointment_duration) {
+                setAppointmentDuration(profile.appointment_duration)
+            }
 
             const { data } = await supabase
                 .from('appointments')
@@ -163,17 +182,16 @@ function AppointmentsContent() {
     }
 
     // FILTRADO Y ORDENAMIENTO CRONOLÓGICO REAL
-    const appointmentsForSelectedDate = appointments
-        .filter(app => {
-            // Comparamos solo la parte de la fecha (YYYY-MM-DD)
-            return app.fecha.startsWith(getLocalDateString(selectedDate));
-        })
-        .sort((a, b) => {
-            // Extraemos la hora literal para ordenar (ej: "13:30" vs "09:00")
-            const timeA = a.fecha.split('T')[1]?.substring(0, 5) || '00:00';
-            const timeB = b.fecha.split('T')[1]?.substring(0, 5) || '00:00';
-            return timeA.localeCompare(timeB);
-        });
+    // Fix: usar rango UTC para evitar timezone shift (cita día 16 aparecía día 17)
+    const appointmentsForSelectedDate = (() => {
+        const { start, end } = cdmxDayRangeUTC(getLocalDateString(selectedDate));
+        return appointments
+            .filter(app => {
+                const appDate = new Date(app.fecha);
+                return appDate >= new Date(start) && appDate <= new Date(end);
+            })
+            .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+    })();
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center p-20 gap-4">
@@ -346,7 +364,7 @@ function AppointmentsContent() {
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 opacity-80 text-[10px] md:text-xs">
                                                 <span className="flex items-center gap-1">
                                                     <Clock className="h-3 w-3" />
-                                                    45 min
+                                                    {appointmentDuration} min
                                                 </span>
                                                 <span className="hidden sm:block h-1 w-1 rounded-full bg-current" />
                                                 <span className="truncate">{app.motivo}</span>
