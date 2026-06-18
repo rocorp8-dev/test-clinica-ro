@@ -124,7 +124,7 @@ export default function GrowthTab({ patient }: GrowthTabProps) {
   }
 
   // Verificar si el paciente tiene fecha de nacimiento
-  if (!patient.fecha_nacimiento) {
+  if (!patient.fecha_nac) {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
         <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />

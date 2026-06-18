@@ -375,7 +375,7 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                                     >
                                         📋 Timeline Clínico
                                     </button>
-                                    {patient.fecha_nacimiento && (
+                                    {patient.fecha_nac && (
                                         <button
                                             onClick={() => setActiveTab('crecimiento')}
                                             className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
