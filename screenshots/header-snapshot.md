@@ -1,0 +1,167 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e40]
+  - complementary [ref=e41]:
+    - generic [ref=e42]:
+      - generic [ref=e44]:
+        - img "MdPulso" [ref=e46]
+        - generic [ref=e47]: MdPulso
+      - navigation [ref=e48]:
+        - link "Panel Principal" [ref=e49] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e50]:
+            - img [ref=e51]
+            - text: Panel Principal
+        - link "Pacientes" [ref=e57] [cursor=pointer]:
+          - /url: /patients
+          - generic [ref=e58]:
+            - img [ref=e59]
+            - text: Pacientes
+        - link "Agenda Médica" [ref=e64] [cursor=pointer]:
+          - /url: /appointments
+          - generic [ref=e65]:
+            - img [ref=e66]
+            - text: Agenda Médica
+        - link "Expedientes" [ref=e68] [cursor=pointer]:
+          - /url: /records
+          - generic [ref=e69]:
+            - img [ref=e70]
+            - text: Expedientes
+        - link "Cobros" [ref=e72] [cursor=pointer]:
+          - /url: /billing
+          - generic [ref=e73]:
+            - img [ref=e74]
+            - text: Cobros
+      - generic [ref=e76]:
+        - link "Configuración" [ref=e77] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e78]
+          - text: Configuración
+        - button "Cerrar Sesión" [ref=e81] [cursor=pointer]:
+          - img [ref=e82]
+          - text: Cerrar Sesión
+  - generic [ref=e85]:
+    - banner [ref=e86]:
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - img [ref=e89]
+          - textbox "Buscar..." [ref=e92]
+        - generic [ref=e93]:
+          - img [ref=e94]
+          - generic [ref=e97]: MdPulso Pro+
+      - generic [ref=e98]:
+        - button "Notificaciones (3 sin leer)" [ref=e130] [cursor=pointer]:
+          - img [ref=e101]
+          - generic [ref=e131]: "3"
+        - generic [ref=e105]:
+          - generic [ref=e106]:
+            - paragraph [ref=e107]: Dr. Demo MdPulso
+            - paragraph [ref=e108]: Director Médico
+          - link [ref=e109] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e111]
+    - main [ref=e114]:
+      - generic [ref=e115]:
+        - generic [ref=e132]:
+          - generic [ref=e133]:
+            - generic [ref=e134]:
+              - generic [ref=e135]: "Estado del Sistema: Óptimo"
+              - heading "Bienvenido a MdPulso" [level=1] [ref=e136]
+              - paragraph [ref=e137]: Gestiona tu práctica médica con precisión quirúrgica y una interfaz diseñada para el alto rendimiento.
+            - generic [ref=e138]:
+              - button "Nueva Consulta" [ref=e139] [cursor=pointer]
+              - link "Ver Agenda" [ref=e140] [cursor=pointer]:
+                - /url: /appointments
+          - img [ref=e143]
+        - generic [ref=e149]:
+          - generic [ref=e150] [cursor=pointer]:
+            - generic [ref=e151]:
+              - img [ref=e153]
+              - img [ref=e158]
+            - generic [ref=e161]:
+              - paragraph [ref=e162]: Pacientes Totales
+              - heading "17" [level=3] [ref=e163]
+          - generic [ref=e164] [cursor=pointer]:
+            - generic [ref=e165]:
+              - img [ref=e167]
+              - img [ref=e169]
+            - generic [ref=e172]:
+              - paragraph [ref=e173]: Citas Programadas
+              - heading "27" [level=3] [ref=e174]
+          - generic [ref=e175] [cursor=pointer]:
+            - generic [ref=e176]:
+              - img [ref=e178]
+              - img [ref=e181]
+            - generic [ref=e184]:
+              - paragraph [ref=e185]: Consultas para Hoy
+              - heading "2" [level=3] [ref=e186]
+          - generic [ref=e187] [cursor=pointer]:
+            - generic [ref=e188]:
+              - img [ref=e190]
+              - img [ref=e193]
+            - generic [ref=e196]:
+              - paragraph [ref=e197]: Balance del Mes
+              - heading "$2100.00" [level=3] [ref=e198]
+        - generic [ref=e199]:
+          - generic [ref=e200]:
+            - generic [ref=e201]:
+              - heading "Próximas Citas" [level=2] [ref=e202]
+              - link "Ver todas" [ref=e203] [cursor=pointer]:
+                - /url: /appointments
+            - generic [ref=e204]:
+              - generic [ref=e205] [cursor=pointer]:
+                - generic [ref=e206]:
+                  - generic [ref=e207]:
+                    - generic [ref=e208]: jue
+                    - generic [ref=e209]: 12:30 p.m.
+                  - generic [ref=e210]:
+                    - paragraph [ref=e211]: Ana Morales Soto
+                    - generic [ref=e213]: dolor de pies
+                - generic [ref=e214]:
+                  - generic [ref=e215]: confirmada
+                  - button [ref=e217]:
+                    - img [ref=e218]
+              - generic [ref=e222] [cursor=pointer]:
+                - generic [ref=e223]:
+                  - generic [ref=e224]:
+                    - generic [ref=e225]: jue
+                    - generic [ref=e226]: 2:30 p.m.
+                  - generic [ref=e227]:
+                    - paragraph [ref=e228]: María González Reyes
+                    - generic [ref=e230]: colitis
+                - generic [ref=e231]:
+                  - generic [ref=e232]: confirmada
+                  - button [ref=e234]:
+                    - img [ref=e235]
+              - generic [ref=e239] [cursor=pointer]:
+                - generic [ref=e240]:
+                  - generic [ref=e241]:
+                    - generic [ref=e242]: sáb
+                    - generic [ref=e243]: 10:00 a.m.
+                  - generic [ref=e244]:
+                    - paragraph [ref=e245]: María Fernández Ruiz
+                    - generic [ref=e247]: Consulta general
+                - generic [ref=e248]:
+                  - generic [ref=e249]: pendiente
+                  - generic [ref=e250]:
+                    - button "OK" [ref=e251]
+                    - button [ref=e252]:
+                      - img [ref=e253]
+          - generic [ref=e257]:
+            - generic [ref=e258]:
+              - heading "MdPulso AI" [level=3] [ref=e259]:
+                - img [ref=e260]
+                - text: MdPulso AI
+              - paragraph [ref=e263]: Analiza expedientes y genera resúmenes automáticos con nuestra IA clínica entrenada.
+              - button "Activar Copiloto" [ref=e264] [cursor=pointer]
+            - generic [ref=e265]:
+              - heading "Novedades" [level=3] [ref=e268]
+              - generic [ref=e269]:
+                - generic [ref=e270]:
+                  - paragraph [ref=e271]: "Próximamente: v2.4"
+                  - paragraph [ref=e273]: Nuevas recetas digitales integradas.
+                - generic [ref=e274]:
+                  - paragraph [ref=e275]: Integración con Farmacias
+                  - paragraph [ref=e277]: Pedidos directos próximamente.
+  - button [ref=e120] [cursor=pointer]:
+    - img [ref=e121]
+  - region "Notifications alt+T"
