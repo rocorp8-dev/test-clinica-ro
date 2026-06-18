@@ -286,6 +286,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                             </motion.div>
                         )}
                     </AnimatePresence>
+                    </div>
                 </div>
 
                 <div className="h-8 w-px bg-slate-200 hidden sm:block" />
