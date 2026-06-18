@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import GrowthTab from '@/components/growth/GrowthTab'
 
 interface PatientDetailModalProps {
     isOpen: boolean
@@ -55,6 +56,7 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
     const [isWritingNote, setIsWritingNote] = useState(false)
     const [soap, setSoap] = useState(SOAP_INITIAL)
     const [showFullFicha, setShowFullFicha] = useState(false)
+    const [activeTab, setActiveTab] = useState<'historial' | 'crecimiento'>('historial')
 
     const [snapshot, setSnapshot] = useState<ClinicalSnapshot | null>(null)
     const [isGeneratingSnapshot, setIsGeneratingSnapshot] = useState(false)
@@ -361,14 +363,42 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                                     </AnimatePresence>
                                 </div>
 
-                                {/* Timeline */}
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-2">
-                                    <h4 className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
-                                        <div className="h-4 w-1 bg-slate-200 rounded-full" />
-                                        Timeline Clínico
-                                    </h4>
-                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md">{history.length} Eventos</span>
+                                {/* Tabs: Historial / Crecimiento */}
+                                <div className="flex gap-2 border-b border-slate-200 mb-6">
+                                    <button
+                                        onClick={() => setActiveTab('historial')}
+                                        className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                                            activeTab === 'historial'
+                                                ? 'border-emerald-500 text-emerald-600'
+                                                : 'border-transparent text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        📋 Timeline Clínico
+                                    </button>
+                                    {patient.fecha_nacimiento && (
+                                        <button
+                                            onClick={() => setActiveTab('crecimiento')}
+                                            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                                                activeTab === 'crecimiento'
+                                                    ? 'border-emerald-500 text-emerald-600'
+                                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                            }`}
+                                        >
+                                            📈 Crecimiento
+                                        </button>
+                                    )}
                                 </div>
+
+                                {/* Timeline (solo si activeTab === 'historial') */}
+                                {activeTab === 'historial' && (
+                                    <>
+                                        <div className="flex items-center justify-between pb-4 mb-2">
+                                            <h4 className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                                                <div className="h-4 w-1 bg-slate-200 rounded-full" />
+                                                Eventos Médicos
+                                            </h4>
+                                            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md">{history.length} Eventos</span>
+                                        </div>
 
                                 <div className="space-y-4">
                                     {loading ? (
@@ -431,6 +461,13 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                                         </div>
                                     )}
                                 </div>
+                                    </>
+                                )}
+
+                                {/* Tab de Crecimiento */}
+                                {activeTab === 'crecimiento' && patient.fecha_nacimiento && (
+                                    <GrowthTab patient={patient} />
+                                )}
                             </div>
                         </div>
 
