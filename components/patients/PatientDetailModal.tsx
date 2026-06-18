@@ -465,7 +465,7 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                                 )}
 
                                 {/* Tab de Crecimiento */}
-                                {activeTab === 'crecimiento' && patient.fecha_nacimiento && (
+                                {activeTab === 'crecimiento' && patient.fecha_nac && (
                                     <GrowthTab patient={patient} />
                                 )}
                             </div>
