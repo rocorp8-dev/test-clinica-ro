@@ -10,6 +10,7 @@ interface PatientModalProps {
     isOpen: boolean
     onClose: () => void
     onSuccess: () => void
+    patient?: any  // Si se pasa un paciente, entra en modo edición
 }
 
 const FIELD_CLASS = (err?: string) =>
@@ -24,7 +25,8 @@ const SELECT_CLASS = (err?: string) =>
             : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/5'
     }`
 
-export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModalProps) {
+export default function PatientModal({ isOpen, onClose, onSuccess, patient }: PatientModalProps) {
+    const isEditMode = !!patient  // Modo edición si hay paciente
     // Datos básicos
     const [nombre, setNombre]       = useState('')
     const [dni, setDni]             = useState('')
@@ -49,7 +51,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
     const [loading, setLoading]     = useState(false)
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-    // Reset completo al cerrar el modal
+    // Reset completo al cerrar el modal o cargar datos en modo edición
     useEffect(() => {
         if (!isOpen) {
             setNombre(''); setDni(''); setCurp(''); setTelefono(''); setEmail('')
@@ -57,8 +59,26 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
             setDomicilio(''); setCiudad(''); setEstado(''); setCp('')
             setTipoSangre(''); setAlergias(''); setPadecimientos('')
             setTab('datos'); setFieldErrors({}); setLoading(false)
+        } else if (isEditMode && patient) {
+            // Cargar datos del paciente en modo edición
+            setNombre(patient.nombre || '')
+            setDni(patient.dni || '')
+            setCurp(patient.curp || '')
+            setTelefono(patient.telefono || '')
+            setEmail(patient.email || '')
+            setFechaNac(patient.fecha_nac || '')
+            setSexo(patient.sexo || '')
+            setEstadoCivil(patient.estado_civil || '')
+            setOcupacion(patient.ocupacion || '')
+            setDomicilio(patient.domicilio || '')
+            setCiudad(patient.ciudad || '')
+            setEstado(patient.estado || '')
+            setCp(patient.cp || '')
+            setTipoSangre(patient.tipo_sangre || '')
+            setAlergias(patient.alergias || '')
+            setPadecimientos(patient.padecimientos || '')
         }
-    }, [isOpen])
+    }, [isOpen, patient, isEditMode])
 
     const clearErr = (k: string) => setFieldErrors(p => ({ ...p, [k]: '' }))
 
@@ -102,8 +122,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) { toast.error('No autenticado'); setLoading(false); return }
 
-        const { error } = await supabase.from('patients').insert([{
-            user_id:      user.id,
+        const patientData = {
             nombre:       nombre.trim(),
             dni:          dni.trim(),
             curp:         curp.trim().toUpperCase() || null,
@@ -120,13 +139,30 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
             tipo_sangre:  tipoSangre || null,
             alergias:     alergias.trim() || null,
             padecimientos: padecimientos.trim() || null,
-        }])
+        }
+
+        let error
+        if (isEditMode && patient) {
+            // Modo edición: UPDATE
+            const result = await supabase
+                .from('patients')
+                .update(patientData)
+                .eq('id', patient.id)
+                .eq('user_id', user.id)  // Seguridad: solo puede editar sus propios pacientes
+            error = result.error
+        } else {
+            // Modo creación: INSERT
+            const result = await supabase
+                .from('patients')
+                .insert([{ ...patientData, user_id: user.id }])
+            error = result.error
+        }
 
         setLoading(false)
         if (error) {
             toast.error(error.message)
         } else {
-            toast.success('Paciente registrado — NOM-004 ✓')
+            toast.success(isEditMode ? 'Paciente actualizado ✓' : 'Paciente registrado — NOM-004 ✓')
             onSuccess()
             onClose()
         }
@@ -185,7 +221,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
                         <div className="sticky top-0 bg-white z-10">
                             <div className="flex items-center justify-between px-6 pt-6 pb-3">
                                 <div>
-                                    <h3 className="text-xl font-bold text-slate-900">Registrar Paciente</h3>
+                                    <h3 className="text-xl font-bold text-slate-900">{isEditMode ? 'Editar Paciente' : 'Registrar Paciente'}</h3>
                                     <p className="text-xs text-slate-400 mt-0.5">NOM-004-SSA3-2012 · Paso {tabs.findIndex(t => t.id === tab) + 1} de {tabs.length}</p>
                                 </div>
                                 <button onClick={onClose} className="rounded-2xl p-2 text-slate-400 hover:bg-slate-100 transition-colors">
@@ -369,7 +405,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
                                 ) : (
                                     <button type="submit" disabled={loading}
                                         className="flex-1 rounded-2xl bg-emerald-600 px-4 py-3.5 text-sm font-bold text-white shadow-xl shadow-emerald-600/10 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 transition-all">
-                                        {loading ? 'Guardando...' : '✓ Guardar Paciente'}
+                                        {loading ? 'Guardando...' : (isEditMode ? '✓ Actualizar Paciente' : '✓ Guardar Paciente')}
                                     </button>
                                 )}
                             </div>

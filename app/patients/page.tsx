@@ -24,6 +24,7 @@ export default function PatientsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isDetailOpen, setIsDetailOpen] = useState(false)
     const [selectedPatient, setSelectedPatient] = useState<any>(null)
+    const [isEditMode, setIsEditMode] = useState(false)  // Para diferenciar registro vs edición
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
@@ -95,7 +96,11 @@ export default function PatientsPage() {
                     <p className="text-slate-500 text-sm italic">Gestión integral de la base de datos clínica</p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => {
+                        setSelectedPatient(null)
+                        setIsEditMode(false)
+                        setIsModalOpen(true)
+                    }}
                     className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-4 text-sm font-bold text-white shadow-xl shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:scale-95"
                 >
                     <Plus className="h-5 w-5" />
@@ -191,10 +196,13 @@ export default function PatientsPage() {
                                                 <ArrowRight className="h-3 w-3" />
                                             </button>
                                             <button
-                                                onClick={() => toast.info('Opciones de Paciente', {
-                                                    description: 'Permisos de edición restringidos por jerarquía clínica.'
-                                                })}
+                                                onClick={() => {
+                                                    setSelectedPatient(patient)
+                                                    setIsEditMode(true)
+                                                    setIsModalOpen(true)
+                                                }}
                                                 className="p-2 text-slate-400 hover:text-slate-600 active:scale-95 transition-all"
+                                                title="Editar paciente"
                                             >
                                                 <MoreVertical className="h-4 w-4" />
                                             </button>
@@ -255,8 +263,13 @@ export default function PatientsPage() {
             </div>
             <PatientModal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                onClose={() => {
+                    setIsModalOpen(false)
+                    setIsEditMode(false)
+                    setSelectedPatient(null)
+                }}
                 onSuccess={loadPatients}
+                patient={isEditMode ? selectedPatient : undefined}
             />
             <PatientDetailModal
                 isOpen={isDetailOpen}
