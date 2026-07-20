@@ -132,7 +132,11 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
         }
     }
 
-    const handleNext = () => {
+    const handleNext = (e?: React.MouseEvent) => {
+        // Prevenir cualquier comportamiento de submit del form padre
+        e?.preventDefault()
+        e?.stopPropagation()
+
         // Validar solo campos del tab actual antes de avanzar
         const errs = validate()
 
@@ -153,7 +157,11 @@ export default function PatientModal({ isOpen, onClose, onSuccess }: PatientModa
         }
 
         // Si no hay errores, avanzar al siguiente tab
-        setTab(tab === 'datos' ? 'domicilio' : 'clinico')
+        if (tab === 'datos') {
+            setTab('domicilio')
+        } else if (tab === 'domicilio') {
+            setTab('clinico')
+        }
     }
 
     const tabs = [
