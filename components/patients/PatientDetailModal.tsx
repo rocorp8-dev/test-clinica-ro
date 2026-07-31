@@ -25,7 +25,7 @@ interface ClinicalSnapshot {
     suggestion: string
 }
 
-const SOAP_INITIAL = { tipo_nota: 'evolucion', subjetivo: '', objetivo: '', analisis: '', plan: '' }
+const SOAP_INITIAL = { tipo_nota: 'evolucion', subjetivo: '', objetivo: '', analisis: '', plan: '', antecedentes_go: '' }
 
 const TIPO_NOTA_LABELS: Record<string, string> = {
     primera_vez: 'Primera Vez',
@@ -131,6 +131,7 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                 analisis: soap.analisis || null,
                 plan: soap.plan || null,
                 diagnostico: soap.analisis || null,
+                antecedentes_go: soap.antecedentes_go || null,
             }])
             if (error) throw error
             toast.success('Nota guardada — NOM-004 ✓')
@@ -517,6 +518,23 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
                                                 />
                                             </div>
                                         ))}
+
+                                        {/* Antecedentes Gineco-Obstétricos (solo para Primera Vez) */}
+                                        {soap.tipo_nota === 'primera_vez' && (
+                                            <div className="pt-2 border-t border-white/10">
+                                                <p className="text-[10px] font-black text-pink-300 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                                                    <Heart className="h-3 w-3" />
+                                                    GO — Antecedentes Gineco-Obstétricos
+                                                </p>
+                                                <textarea
+                                                    value={soap.antecedentes_go}
+                                                    onChange={e => setSoap(s => ({ ...s, antecedentes_go: e.target.value }))}
+                                                    placeholder="Menarca, FUM, gestas, partos, cesáreas, abortos, menopausia, método anticonceptivo..."
+                                                    className="w-full rounded-2xl bg-pink-500/10 border border-pink-300/30 p-4 text-sm text-white focus:bg-pink-500/15 focus:outline-none focus:ring-2 focus:ring-pink-400/40 transition-all font-medium placeholder:text-pink-200/50 resize-none"
+                                                    rows={3}
+                                                />
+                                            </div>
+                                        )}
 
                                         <div className="flex justify-end gap-3 pt-1">
                                             <button onClick={() => setIsWritingNote(false)} className="px-6 py-3 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-white transition-colors">
