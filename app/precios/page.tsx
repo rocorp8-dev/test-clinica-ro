@@ -158,6 +158,13 @@ export default function PricingPage() {
                   </span>
                   <span className="text-slate-500 text-sm">/mes</span>
                 </div>
+                <div className="text-[11px] text-slate-500 mt-1 font-mono">
+                  {isAnnual ? (
+                    <span className="text-emerald-400">${(plan.annual * 12).toLocaleString('es-MX')} /año con descuento</span>
+                  ) : (
+                    <span>${(plan.monthly * 12).toLocaleString('es-MX')} /año</span>
+                  )}
+                </div>
               </div>
 
               <div className="h-px bg-slate-800/50 mb-8" />
