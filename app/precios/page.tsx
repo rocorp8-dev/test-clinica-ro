@@ -158,9 +158,6 @@ export default function PricingPage() {
                   </span>
                   <span className="text-slate-500 text-sm">/mes</span>
                 </div>
-                <div className="text-[10px] text-slate-600 mt-1 font-mono uppercase">
-                  {isAnnual ? 'Facturado anualmente' : 'Facturado mensualmente'}
-                </div>
               </div>
 
               <div className="h-px bg-slate-800/50 mb-8" />
