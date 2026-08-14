@@ -13,8 +13,12 @@ import {
     ChevronRight,
     Filter,
     Loader2,
-    CheckCheck
+    CheckCheck,
+    ExternalLink,
+    UserPlus,
+    FolderOpen
 } from 'lucide-react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import AppointmentModal from '@/components/appointments/AppointmentModal'
@@ -47,6 +51,9 @@ function AppointmentsContent() {
     const [checkoutAppointment, setCheckoutAppointment] = useState<any>(null)
     const [appointmentDuration, setAppointmentDuration] = useState(60) // Default 60 min
     const highlightRef = useRef<HTMLDivElement>(null)
+
+    // Estado para Google Calendar (fail-safe: si falla, no afecta nada)
+    const [googleCalendarEvents, setGoogleCalendarEvents] = useState<any[]>([])
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
@@ -107,8 +114,23 @@ function AppointmentsContent() {
         }
     }, [supabase])
 
+    // FAIL-SAFE: Cargar eventos de Google Calendar (nunca bloquea la app)
+    const loadGoogleCalendarEvents = useCallback(async () => {
+        try {
+            const response = await fetch('/api/calendar/google-ical')
+            const data = await response.json()
+            if (data.success && Array.isArray(data.events)) {
+                setGoogleCalendarEvents(data.events)
+            }
+        } catch {
+            // Silencioso: si falla, simplemente no muestra eventos de Google
+            setGoogleCalendarEvents([])
+        }
+    }, [])
+
     useEffect(() => {
         loadAppointments()
+        loadGoogleCalendarEvents() // Cargar en paralelo, no bloquea
 
         // 🚀 REAL-TIME: Suscripción a cambios en appointments para actualización automática
         // Fix Error #3: Las citas ahora aparecen inmediatamente después de agendar
@@ -138,7 +160,7 @@ function AppointmentsContent() {
         }
 
         setupRealtimeSubscription()
-    }, [loadAppointments, supabase])
+    }, [loadAppointments, loadGoogleCalendarEvents, supabase])
 
     // Scroll a la cita destacada después de cargar
     useEffect(() => {
@@ -191,6 +213,17 @@ function AppointmentsContent() {
                 return appDate >= new Date(start) && appDate <= new Date(end);
             })
             .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+    })();
+
+    // Filtrar eventos de Google Calendar para la fecha seleccionada
+    const googleEventsForSelectedDate = (() => {
+        const { start, end } = cdmxDayRangeUTC(getLocalDateString(selectedDate));
+        return googleCalendarEvents
+            .filter(event => {
+                const eventDate = new Date(event.start);
+                return eventDate >= new Date(start) && eventDate <= new Date(end);
+            })
+            .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
     })();
 
     if (loading) return (
@@ -427,7 +460,103 @@ function AppointmentsContent() {
                                 </div>
                             </div>
                         </motion.div>
-                    )) : (
+                    )) : null}
+
+                    {/* Eventos de Google Calendar (Solo lectura, fail-safe) */}
+                    {googleEventsForSelectedDate.length > 0 && (
+                        <>
+                            {appointmentsForSelectedDate.length > 0 && (
+                                <div className="flex items-center gap-3 mt-6 mb-2">
+                                    <div className="h-px flex-1 bg-blue-200" />
+                                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest flex items-center gap-1">
+                                        <ExternalLink className="h-3 w-3" /> Google Calendar
+                                    </span>
+                                    <div className="h-px flex-1 bg-blue-200" />
+                                </div>
+                            )}
+                            {googleEventsForSelectedDate.map((event, i) => (
+                                <motion.div
+                                    key={event.id}
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: (appointmentsForSelectedDate.length + i) * 0.05 }}
+                                    className="flex gap-3 md:gap-6 group"
+                                >
+                                    <div className="flex flex-col items-center gap-2 pt-2 min-w-[50px] md:min-w-[60px]">
+                                        <span suppressHydrationWarning className="text-[11px] md:text-sm font-bold text-blue-600">
+                                            {(() => {
+                                                const localD = new Date(event.start)
+                                                if (isNaN(localD.getTime())) return '--:--'
+                                                let hours = localD.getHours()
+                                                let m = String(localD.getMinutes()).padStart(2, '0')
+                                                const ampm = hours >= 12 ? 'p.m.' : 'a.m.'
+                                                hours = hours % 12 || 12
+                                                return `${hours}:${m} ${ampm}`
+                                            })()}
+                                        </span>
+                                        <div className="w-px flex-1 bg-blue-200 group-last:bg-transparent" />
+                                    </div>
+
+                                    <div className="flex-1 rounded-[1.4rem] md:rounded-[1.8rem] p-4 md:p-6 border border-blue-200 bg-blue-50/50 hover:border-blue-300 hover:shadow-lg transition-all">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-start gap-3 md:gap-4 min-w-0">
+                                                <div className="rounded-lg md:rounded-xl p-2 md:p-3 flex-shrink-0 bg-blue-100">
+                                                    <CalendarIcon className="h-4 w-4 md:h-5 md:w-5 text-blue-500" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-base md:text-lg leading-tight truncate text-slate-800">
+                                                        {event.summary}
+                                                    </p>
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[10px] md:text-xs text-slate-500">
+                                                        <span className="flex items-center gap-1">
+                                                            <Clock className="h-3 w-3" />
+                                                            {event.isAllDay ? 'Todo el día' : (() => {
+                                                                const start = new Date(event.start)
+                                                                const end = new Date(event.end)
+                                                                const diff = Math.round((end.getTime() - start.getTime()) / (1000 * 60))
+                                                                return `${diff} min`
+                                                            })()}
+                                                        </span>
+                                                        {event.description && (
+                                                            <>
+                                                                <span className="hidden sm:block h-1 w-1 rounded-full bg-current" />
+                                                                <span className="truncate max-w-[200px]">{event.description}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                                                <span className="rounded-full px-2 md:px-3 py-1 text-[8px] md:text-[10px] font-bold uppercase tracking-widest bg-blue-100 text-blue-600">
+                                                    Google
+                                                </span>
+                                                {event.matchedPatient ? (
+                                                    <Link
+                                                        href={`/patients?highlight=${event.matchedPatient.id}`}
+                                                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-[8px] md:text-[10px] font-black text-white uppercase tracking-tighter hover:bg-emerald-700 transition-colors"
+                                                    >
+                                                        <FolderOpen className="h-3 w-3" />
+                                                        Expediente
+                                                    </Link>
+                                                ) : (
+                                                    <Link
+                                                        href={`/patients?new=${encodeURIComponent(event.summary)}`}
+                                                        className="flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-1 text-[8px] md:text-[10px] font-black text-slate-600 uppercase tracking-tighter hover:bg-slate-300 transition-colors"
+                                                    >
+                                                        <UserPlus className="h-3 w-3" />
+                                                        Crear
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </>
+                    )}
+
+                    {/* Mensaje cuando no hay citas (nativas ni Google) */}
+                    {appointmentsForSelectedDate.length === 0 && googleEventsForSelectedDate.length === 0 && (
                         <div className="flex flex-col items-center justify-center p-10 md:p-20 text-center rounded-[2rem] border-2 border-dashed border-slate-100">
                             <CalendarIcon className="h-10 w-10 md:h-12 md:w-12 text-slate-200 mb-4" />
                             <p className="text-sm md:text-base text-slate-500 font-medium tracking-tight">No hay citas registradas para este día.</p>
