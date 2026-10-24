@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { Users, Clock, CheckCircle, AlertCircle, Activity } from 'lucide-react'
+import AdminActions from '@/components/admin/AdminActions'
 
-const ADMIN_KEY = 'rocorp2026'
+const ADMIN_KEY = process.env.ADMIN_SECRET_KEY || ''
 
 type Profile = {
   id: string
@@ -13,6 +14,31 @@ type Profile = {
   notified_at: string | null
   patients_count: number
   appointments_count: number
+  plan: string | null
+  subscription_status: string | null
+}
+
+const PLAN_LABELS: Record<string, string> = {
+  basico: 'Básico',
+  pro: 'Pro+',
+  clinica: 'Clínica',
+}
+
+function subStatusBadge(status: string | null) {
+  switch (status) {
+    case 'active':
+      return { label: 'Activo', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' }
+    case 'trialing':
+      return { label: 'Trial', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' }
+    case 'past_due':
+      return { label: 'Pago pendiente', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' }
+    case 'canceled':
+      return { label: 'Cancelado', color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' }
+    case 'expired':
+      return { label: 'Expirado', color: 'text-red-400 bg-red-500/10 border-red-500/20' }
+    default:
+      return { label: '—', color: 'text-slate-500 bg-slate-500/10 border-slate-500/20' }
+  }
 }
 
 function trialStatus(trialEndsAt: string) {
@@ -34,7 +60,8 @@ function formatDate(dateStr: string) {
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ key?: string }> }) {
   const params = await searchParams
-  if (params.key !== ADMIN_KEY) {
+  // ⚠️ Si ADMIN_SECRET_KEY no está configurado, NADIE entra (nunca aceptar clave vacía)
+  if (!ADMIN_KEY || params.key !== ADMIN_KEY) {
     redirect('/login')
   }
 
@@ -46,8 +73,18 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   const { data: profiles } = await supabase
     .from('user_profiles')
-    .select('*')
+    .select('id, email, full_name, created_at, trial_ends_at, notified_at')
     .order('created_at', { ascending: false })
+
+  // Suscripciones para columnas Plan / Status
+  const { data: subs } = await supabase
+    .from('subscriptions')
+    .select('user_id, plan, status')
+
+  const subsMap = new Map<string, { plan: string; status: string }>()
+  ;(subs ?? []).forEach((s) => {
+    subsMap.set(s.user_id, { plan: s.plan, status: s.status })
+  })
 
   // Contar pacientes y citas por doctor
   const enriched: Profile[] = await Promise.all(
@@ -56,7 +93,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         supabase.from('patients').select('*', { count: 'exact', head: true }).eq('user_id', p.id),
         supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('doctor_id', p.id),
       ])
-      return { ...p, patients_count: pCount ?? 0, appointments_count: aCount ?? 0 }
+      const sub = subsMap.get(p.id)
+      return {
+        ...p,
+        patients_count: pCount ?? 0,
+        appointments_count: aCount ?? 0,
+        plan: sub?.plan ?? null,
+        subscription_status: sub?.status ?? null,
+      }
     })
   )
 
@@ -100,14 +144,18 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                   <th className="text-left px-5 py-3">Doctor</th>
                   <th className="text-left px-5 py-3">Registrado</th>
                   <th className="text-left px-5 py-3">Trial</th>
+                  <th className="text-left px-5 py-3">Plan</th>
+                  <th className="text-left px-5 py-3">Status</th>
                   <th className="text-center px-5 py-3">Pacientes</th>
                   <th className="text-center px-5 py-3">Citas</th>
                   <th className="text-left px-5 py-3">Notificado</th>
+                  <th className="text-left px-5 py-3">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {enriched.map((p) => {
                   const trial = trialStatus(p.trial_ends_at)
+                  const subBadge = subStatusBadge(p.subscription_status)
                   const isActive = p.patients_count > 0 || p.appointments_count > 0
                   return (
                     <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
@@ -124,6 +172,16 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                       <td className="px-5 py-4">
                         <span className={`text-xs px-2 py-1 rounded-lg border font-medium ${trial.color}`}>
                           {trial.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="text-xs text-slate-300 font-medium">
+                          {p.plan ? PLAN_LABELS[p.plan] || p.plan : '—'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`text-xs px-2 py-1 rounded-lg border font-medium ${subBadge.color}`}>
+                          {subBadge.label}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-center">
@@ -143,6 +201,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                           </span>
                         )}
                       </td>
+                      <td className="px-5 py-4">
+                        <AdminActions userId={p.id} adminKey={ADMIN_KEY} />
+                      </td>
                     </tr>
                   )
                 })}
@@ -154,6 +215,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <div className="md:hidden divide-y divide-slate-800">
             {enriched.map((p) => {
               const trial = trialStatus(p.trial_ends_at)
+              const subBadge = subStatusBadge(p.subscription_status)
               const isActive = p.patients_count > 0 || p.appointments_count > 0
               return (
                 <div key={p.id} className="p-4 space-y-2">
@@ -169,10 +231,21 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                       {trial.label}
                     </span>
                   </div>
+                  <div className="flex items-center gap-2 pl-4">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md border font-medium ${subBadge.color}`}>
+                      {subBadge.label}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {p.plan ? PLAN_LABELS[p.plan] || p.plan : 'Sin plan'}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-4 pl-4 text-xs text-slate-400">
                     <span>{p.patients_count} pacientes</span>
                     <span>{p.appointments_count} citas</span>
                     <span>{formatDate(p.created_at)}</span>
+                  </div>
+                  <div className="pl-4 pt-1">
+                    <AdminActions userId={p.id} adminKey={ADMIN_KEY} />
                   </div>
                 </div>
               )

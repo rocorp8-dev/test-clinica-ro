@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { NIA_TOOLS, executeNiaTool } from './tools';
+import { logger } from '@/lib/logger';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { validateClinicalSafety } from '@/lib/clinicalSafety';
@@ -7,47 +8,72 @@ import { validateClinicalSafety } from '@/lib/clinicalSafety';
 // Vercel: aumentar timeout para tool call loops (default 10s es insuficiente)
 export const maxDuration = 30;
 
-// Proveedor primario: Groq llama-3.3-70b (tool calling nativo, ~1s, acepta términos médicos)
-// Fallback: OpenRouter llama-3.1-8b free tier (solo texto, sin tools pero estable)
-// Nota: mistral-large NO es free tier y causa errores 402/403 en OpenRouter
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+// Proveedor primario: Groq openai/gpt-oss-120b (modelo 120B recomendado oficialmente por Groq, tool calling nativo)
+// Nivel 2: Groq qwen/qwen3.6-27b (modelo 27B ultra-rápido recomendado por Groq)
+// Fallback final: OpenRouter llama-3.1-8b free tier (solo texto, sin tools pero estable)
+const GROQ_MODEL_PRIMARY   = 'openai/gpt-oss-120b';             // Primario — 120B tool calling
+const GROQ_MODEL_SECONDARY = 'qwen/qwen3.6-27b';                // Nivel 2 — 27B ultra-rápido
 const OPENROUTER_FALLBACK_MODEL = 'meta-llama/llama-3.1-8b-instruct:free';
 
 async function callNiaAI(payload: Record<string, unknown>): Promise<{ ok: boolean; data: any }> {
     const groqKey = process.env.GROQ_API_KEY;
+
     if (groqKey) {
+        // Nivel 1: kimi-k2 — primario por tool calling confiable (lección #74)
         try {
-            console.log(`NIA: Intentando Groq con modelo ${GROQ_MODEL}...`);
+            logger.log(`NIA: Intentando Groq primario (${GROQ_MODEL_PRIMARY})...`);
             const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...payload, model: GROQ_MODEL }),
+                body: JSON.stringify({ ...payload, model: GROQ_MODEL_PRIMARY }),
             });
             const d = await res.json();
             if (res.ok) {
-                console.log('NIA: usando Groq ✅');
+                logger.log(`NIA: usando Groq primario (${GROQ_MODEL_PRIMARY}) ✅`);
                 return { ok: true, data: d };
             }
-            // Si es 429 (rate limit), ir directo a OpenRouter sin reintentar
             if (res.status === 429) {
-                console.warn('NIA: Groq rate limit (429) - fallback a OpenRouter');
+                logger.warn(`NIA: Groq primario rate limit (429) - intentando nivel 2`);
             } else {
-                console.error('NIA: Groq error HTTP', res.status, ':', JSON.stringify(d).slice(0, 200));
+                logger.error(`NIA: Groq primario error HTTP ${res.status}:`, JSON.stringify(d).slice(0, 200));
             }
         } catch (e) {
-            console.error('NIA: Groq excepción:', e instanceof Error ? e.message : String(e));
+            logger.error('NIA: Groq primario excepción:', e instanceof Error ? e.message : String(e));
+        }
+
+        // Nivel 2: llama-3.1-70b — fallback Groq si kimi-k2 no disponible
+        try {
+            logger.log(`NIA: Intentando Groq nivel 2 (${GROQ_MODEL_SECONDARY})...`);
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...payload, model: GROQ_MODEL_SECONDARY }),
+            });
+            const d = await res.json();
+            if (res.ok) {
+                logger.log(`NIA: usando Groq nivel 2 (${GROQ_MODEL_SECONDARY}) ✅`);
+                return { ok: true, data: d };
+            }
+            if (res.status === 429) {
+                logger.warn('NIA: Groq nivel 2 rate limit (429) - fallback a OpenRouter');
+            } else {
+                logger.error('NIA: Groq nivel 2 error HTTP', res.status, ':', JSON.stringify(d).slice(0, 200));
+            }
+        } catch (e) {
+            logger.error('NIA: Groq nivel 2 excepción:', e instanceof Error ? e.message : String(e));
         }
     } else {
-        console.warn('NIA: GROQ_API_KEY no encontrada, usando OpenRouter directamente');
+        logger.warn('NIA: GROQ_API_KEY no encontrada, usando OpenRouter directamente');
     }
 
+    // Fallback final: OpenRouter (sin tool calling)
     const orKey = process.env.OPENROUTER_API_KEY;
     if (!orKey) {
-        console.error('NIA: OPENROUTER_API_KEY tampoco encontrada');
+        logger.error('NIA: OPENROUTER_API_KEY tampoco encontrada');
         return { ok: false, data: { error: { message: 'No AI provider configured' } } };
     }
 
-    console.log(`NIA: Fallback a OpenRouter con modelo ${OPENROUTER_FALLBACK_MODEL}...`);
+    logger.log(`NIA: Fallback a OpenRouter con modelo ${OPENROUTER_FALLBACK_MODEL}...`);
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -60,9 +86,9 @@ async function callNiaAI(payload: Record<string, unknown>): Promise<{ ok: boolea
     });
     const d = await res.json();
     if (!res.ok) {
-        console.error('NIA: OpenRouter error HTTP', res.status, ':', JSON.stringify(d).slice(0, 200));
+        logger.error('NIA: OpenRouter error HTTP', res.status, ':', JSON.stringify(d).slice(0, 200));
     } else {
-        console.log('NIA: usando OpenRouter fallback ✅');
+        logger.log('NIA: usando OpenRouter fallback ✅');
     }
     return { ok: res.ok, data: d };
 }
@@ -254,7 +280,7 @@ export async function POST(req: Request) {
         let preFetchedMessages = [...messages];
 
         if (isAgendaQuery) {
-            console.log('NIA: Pre-fetching agenda for direct inject...');
+            logger.log('NIA: Pre-fetching agenda for direct inject...');
             const agendaResult = await executeNiaTool('get_agenda_by_date', {}, user.id);
             preFetchedMessages = [
                 ...messages,
@@ -276,7 +302,7 @@ export async function POST(req: Request) {
         const chatHistory = [...messages];
 
         // Initial AI Call with Tools — usa Groq (primario) → OpenRouter (fallback)
-        console.log('NIA: Starting AI request...');
+        logger.log('NIA: Starting AI request...');
         const initialResult = await callNiaAI({
             messages: [
                 { role: 'system', content: getNiaSystemPrompt(doctorName) },
@@ -288,7 +314,7 @@ export async function POST(req: Request) {
         });
 
         if (!initialResult.ok) {
-            console.error('NIA: Error en llamada inicial:', initialResult.data);
+            logger.error('NIA: Error en llamada inicial:', initialResult.data);
             return NextResponse.json({ error: 'No se pudo conectar con el asistente. Intenta de nuevo.' }, { status: 503 });
         }
 
@@ -296,19 +322,19 @@ export async function POST(req: Request) {
 
         // Validar que la respuesta tiene el formato esperado
         if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-            console.error('NIA: Respuesta de IA con formato inesperado:', JSON.stringify(data));
+            logger.error('NIA: Respuesta de IA con formato inesperado:', JSON.stringify(data));
             return NextResponse.json({ error: 'Respuesta inválida del asistente. Intenta de nuevo.' }, { status: 500 });
         }
 
         let message = data.choices[0].message;
-        console.log('NIA: AI Response Message:', JSON.stringify(message).slice(0, 300));
+        logger.log('NIA: AI Response Message:', JSON.stringify(message).slice(0, 300));
 
         // Fallback: si el modelo embebió el tool call como texto plano en content
         // (comportamiento de modelos pequeños que no soportan la API de tools)
         if (!message.tool_calls && message.content) {
             const extracted = extractToolCallsFromContent(message.content);
             if (extracted) {
-                console.warn('NIA: ⚠️ Tool call detectado como texto plano — aplicando fallback parser');
+                logger.warn('NIA: ⚠️ Tool call detectado como texto plano — aplicando fallback parser');
                 message.tool_calls = extracted.map((tc, idx) => ({
                     id: `fallback_${idx}`,
                     type: 'function',
@@ -323,7 +349,7 @@ export async function POST(req: Request) {
         chatHistory.push(message);
 
         while (message.tool_calls && iterations < 5) {
-            console.log(`NIA: Processing ${message.tool_calls.length} tool calls(Iteration ${iterations + 1})`);
+            logger.log(`NIA: Processing ${message.tool_calls.length} tool calls(Iteration ${iterations + 1})`);
             iterations++;
 
             for (const toolCall of message.tool_calls) {
@@ -341,7 +367,7 @@ export async function POST(req: Request) {
                 });
             }
 
-            console.log('NIA: Sending tool results back to AI...');
+            logger.log('NIA: Sending tool results back to AI...');
             // FIX: Truncar historial para evitar rate limit de Groq (max tokens/min)
             // Solo enviar system prompt + últimas 10 interacciones (suficiente para contexto del loop)
             const truncatedHistory = chatHistory.slice(-10);
@@ -353,18 +379,18 @@ export async function POST(req: Request) {
             });
             data = loopResult.data;
             if (!loopResult.ok) {
-                console.error('NIA: Loop AI Error:', data);
+                logger.error('NIA: Loop AI Error:', data);
                 break;
             }
 
             message = data.choices[0].message;
-            console.log('NIA: AI Next Step Message:', JSON.stringify(message).slice(0, 300));
+            logger.log('NIA: AI Next Step Message:', JSON.stringify(message).slice(0, 300));
 
             // Fallback también en el loop
             if (!message.tool_calls && message.content) {
                 const extracted = extractToolCallsFromContent(message.content);
                 if (extracted) {
-                    console.warn('NIA: ⚠️ Tool call fallback en iteración', iterations);
+                    logger.warn('NIA: ⚠️ Tool call fallback en iteración', iterations);
                     message.tool_calls = extracted.map((tc, idx) => ({
                         id: `fallback_loop_${iterations}_${idx}`,
                         type: 'function',
@@ -377,7 +403,7 @@ export async function POST(req: Request) {
             chatHistory.push(message);
         }
 
-        console.log('NIA: Final Response Ready.');
+        logger.log('NIA: Final Response Ready.');
 
         // Bloquear alucinaciones de citas: el modelo NO puede decir "agendé/quedó agendada"
         // sin haber llamado create_appointment exitosamente.
@@ -386,11 +412,11 @@ export async function POST(req: Request) {
         const claimsAppointmentCreated = /\b(agend[eé]|quedó agendad[oa]|cita creada|cita agendada con éxito)\b/i.test(finalText);
         if (claimsAppointmentCreated) {
             if (!createToolResult) {
-                console.warn('NIA 🛑: false appointment confirmation — create_appointment never called');
+                logger.warn('NIA 🛑: false appointment confirmation — create_appointment never called');
                 return NextResponse.json({ choices: [{ message: { role: 'assistant', content: 'No pude completar la cita. Por favor intenta de nuevo con nombre del paciente, fecha, hora y motivo.' } }] });
             }
             if (createToolResult.content.includes('"error"')) {
-                console.warn('NIA 🛑: false appointment confirmation — create_appointment returned error');
+                logger.warn('NIA 🛑: false appointment confirmation — create_appointment returned error');
                 try {
                     const toolErr = JSON.parse(createToolResult.content);
                     return NextResponse.json({ choices: [{ message: { role: 'assistant', content: toolErr.error || 'Error al agendar. Por favor verifica los datos.' } }] });
@@ -420,7 +446,7 @@ export async function POST(req: Request) {
 
         const safety = validateClinicalSafety(clinicalData, finalText, doctorName, isClinical);
         if (!safety.isValid && safety.suggestedWarning) {
-            console.warn('NIA 🛑: SAFETY VIOLATION (Contextual):', safety.missingInResponse);
+            logger.warn('NIA 🛑: SAFETY VIOLATION (Contextual):', safety.missingInResponse);
             // FIX: En lugar de reemplazar la respuesta, AGREGAR la alerta al final
             // para que el médico vea TANTO la confirmación de la acción COMO la alerta
             const currentContent = data?.choices?.[0]?.message?.content || '';
@@ -438,7 +464,7 @@ export async function POST(req: Request) {
             const userMessage = chatHistory[chatHistory.length - 1]?.content || '';
             const isAction = /agenda|agendar|cita|nota|cobro|registra/i.test(userMessage);
 
-            console.log('🔍 NIA DEBUG:', {
+            logger.log('🔍 NIA DEBUG:', {
                 isTooShort,
                 hasRecordTool,
                 userAskedRecord,
@@ -462,7 +488,7 @@ export async function POST(req: Request) {
         // Si el contenido final es JSON de tool call, intenta ejecutarlo una vez más.
         const finalContent = data?.choices?.[0]?.message?.content;
         if (isRawToolCallJson(finalContent)) {
-            console.error('NIA: 🚨 SAFETY GATE activado — content final contiene JSON de tool call. Ejecutando manualmente...');
+            logger.error('NIA: 🚨 SAFETY GATE activado — content final contiene JSON de tool call. Ejecutando manualmente...');
             const extracted = extractToolCallsFromContent(finalContent);
             if (extracted) {
                 // Ejecutar las tools manualmente y llamar al modelo una vez más
@@ -477,7 +503,7 @@ export async function POST(req: Request) {
                         const result = await executeNiaTool(tc.name, JSON.parse(tc.arguments), user.id);
                         safetyHistory.push({ role: 'tool', tool_call_id: `safety_0`, name: tc.name, content: JSON.stringify(result) });
                     } catch (e) {
-                        console.error('NIA: Safety gate tool execution error:', e);
+                        logger.error('NIA: Safety gate tool execution error:', e);
                     }
                 }
                 const safetyResult = await callNiaAI({
@@ -507,7 +533,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('NIA_API_ERROR:', error);
+        logger.error('NIA_API_ERROR:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

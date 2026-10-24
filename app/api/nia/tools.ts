@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 // Initialize Supabase Admin client for NIA (Server Side)
 const supabase = createClient(
@@ -192,7 +193,7 @@ export const NIA_TOOLS = [
 ];
 
 export async function executeNiaTool(name: string, args: any, userId: string) {
-    console.log(`NIA Tool: ${name}`, JSON.stringify(args).slice(0, 200));
+    logger.log(`NIA Tool: ${name}`, JSON.stringify(args).slice(0, 200));
 
     try {
         switch (name) {
@@ -203,7 +204,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                     .replace(/\s+/g, ' ').trim();
 
-                console.log(`[NIA Search] Original: "${args.query}" → Cleaned: "${cleanQuery}"`);
+                logger.log(`[NIA Search] Original: "${args.query}" → Cleaned: "${cleanQuery}"`);
 
                 // Intento 1: RPC optimizado
                 const { data: rpcData, error: rpcError } = await supabase.rpc('search_patients_nia', {
@@ -214,7 +215,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 // Intento 2: Si RPC falla o no encuentra nada, búsqueda directa como fallback
                 let finalData = rpcData;
                 if (rpcError || !rpcData || rpcData.length === 0) {
-                    console.log('[NIA Search] RPC falló o vacío, intentando búsqueda directa...');
+                    logger.log('[NIA Search] RPC falló o vacío, intentando búsqueda directa...');
                     const { data: directData } = await supabase
                         .from('patients')
                         .select('id, nombre, dni, alergias, padecimientos, tipo_sangre')
@@ -257,7 +258,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 }
 
                 const [pRes, aRes, nRes] = await Promise.all([
-                    supabase.from('patients').select('*').eq('id', pId).single(),
+                    supabase.from('patients').select('id, nombre, dni, curp, fecha_nac, sexo, telefono, email, alergias, padecimientos, antecedentes, tipo_sangre, created_at').eq('id', pId).single(),
                     supabase.from('appointments').select('id, fecha, motivo, estado').eq('patient_id', pId).order('fecha', { ascending: false }).limit(20),
                     supabase.from('medical_notes').select('id, created_at, subjetivo, objetivo, analisis, plan, codigo_cie10').eq('patient_id', pId).order('created_at', { ascending: false }).limit(10)
                 ]);
@@ -468,7 +469,7 @@ export async function executeNiaTool(name: string, args: any, userId: string) {
                 return { error: `Herramienta "${name}" no reconocida.` };
         }
     } catch (err: any) {
-        console.error(`NIA Tool Error (${name}):`, err.message);
+        logger.error(`NIA Tool Error (${name}):`, err.message);
         const m = err.message || '';
         if (m.includes('uuid')) return { error: 'ID inválido. Usa un nombre o UUID real.' };
         return { error: `Error técnico: ${m}` };

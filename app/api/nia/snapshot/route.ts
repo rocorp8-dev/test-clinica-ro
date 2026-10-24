@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { logger, safeErrorMessage } from '@/lib/logger';
 import { validateClinicalSafety } from '@/lib/clinicalSafety';
 
 export async function POST(req: Request) {
     try {
         const { patient_id } = await req.json();
-        console.log('Generating snapshot for patient_id:', patient_id);
+        logger.log('Generating snapshot for patient_id:', patient_id);
 
         // Get authenticating user
         const cookieStore = await cookies();
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
         // 1. Profile
         const { data: patient, error: pError } = await supabaseClient
             .from('patients')
-            .select('*')
+            .select('id, nombre, dni, curp, fecha_nac, sexo, telefono, email, alergias, padecimientos, antecedentes, tipo_sangre, created_at')
             .eq('id', patient_id)
             .single();
 
@@ -41,14 +42,14 @@ export async function POST(req: Request) {
         // 2. Appointments
         const { data: appointments } = await supabaseClient
             .from('appointments')
-            .select('*')
+            .select('id, fecha, motivo, estado, diagnostico, created_at')
             .eq('patient_id', patient_id)
             .order('fecha', { ascending: false });
 
         // 3. Notes
         const { data: notes } = await supabaseClient
             .from('medical_notes')
-            .select('*')
+            .select('id, created_at, tipo_nota, subjetivo, objetivo, analisis, plan, diagnostico, codigo_cie10, tension_sistolica, tension_diastolica, frecuencia_cardiaca, frecuencia_resp, temperatura, peso_kg, talla_cm, spo2, firmada, cedula_prof, antecedentes_go')
             .eq('patient_id', patient_id)
             .order('created_at', { ascending: false });
 
@@ -83,16 +84,18 @@ DATA BRUTA:
 ${JSON.stringify(medicalData)}
 `;
 
-        // Proveedor primario: Groq llama-3.3-70b (tool calling nativo, ~0.8s, estable)
-        // Fallback: OpenRouter mistral-large (Cerebras llama3.1-8b DECOMMISSIONED mayo 2026)
-        const GROQ_MODEL = 'llama-3.3-70b-versatile';
-        const OPENROUTER_FALLBACK = 'mistralai/mistral-large';
+        // Nivel 1 — Groq openai/gpt-oss-120b: recomendado oficialmente por Groq, excelente para JSON estructurado
+        // Nivel 2 — Groq qwen/qwen3.6-27b: modelo 27B ultra-rápido de respaldo
+        // Fallback final — OpenRouter mistral-large (solo texto, sin herramientas)
+        const GROQ_MODEL_PRIMARY   = 'openai/gpt-oss-120b';             // Primario — JSON generation 120B
+        const GROQ_MODEL_SECONDARY = 'qwen/qwen3.6-27b';                // Nivel 2 — 27B ultra-rápido
+        const OPENROUTER_FALLBACK  = 'mistralai/mistral-large';         // Fallback final
 
         let response;
         let data;
         let usedProvider = 'groq';
 
-        // Intentar Groq primero
+        // Nivel 1: llama-3.1-70b — primario para generación de JSON clínico
         const groqKey = process.env.GROQ_API_KEY;
         if (groqKey) {
             try {
@@ -103,7 +106,7 @@ ${JSON.stringify(medicalData)}
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model: GROQ_MODEL,
+                        model: GROQ_MODEL_PRIMARY,
                         messages: [{ role: "user", content: NIA_PROMPT }],
                         response_format: { type: "json_object" },
                         temperature: 0.1
@@ -111,14 +114,44 @@ ${JSON.stringify(medicalData)}
                 });
                 data = await response.json();
                 if (response.ok) {
-                    console.log('SNAP: usando Groq ✅');
+                    logger.log(`SNAP: usando Groq primario (${GROQ_MODEL_PRIMARY}) ✅`);
                 } else {
-                    console.warn('SNAP: Groq error, fallback OpenRouter:', data?.error?.message);
-                    usedProvider = 'openrouter';
+                    logger.warn(`SNAP: Groq primario error (${response.status}), intentando nivel 2:`, data?.error?.message);
+                    usedProvider = 'groq-secondary';
                 }
             } catch (e) {
-                console.warn('SNAP: Groq excepción, fallback OpenRouter:', e);
-                usedProvider = 'openrouter';
+                logger.warn('SNAP: Groq primario excepción, intentando nivel 2:', e);
+                usedProvider = 'groq-secondary';
+            }
+
+            // Nivel 2: kimi-k2 — si llama-3.1 falla
+            if (usedProvider === 'groq-secondary') {
+                try {
+                    response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${groqKey}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: GROQ_MODEL_SECONDARY,
+                            messages: [{ role: "user", content: NIA_PROMPT }],
+                            response_format: { type: "json_object" },
+                            temperature: 0.1
+                        })
+                    });
+                    data = await response.json();
+                    if (response.ok) {
+                        logger.log(`SNAP: usando Groq nivel 2 (${GROQ_MODEL_SECONDARY}) ✅`);
+                        usedProvider = 'groq';
+                    } else {
+                        logger.warn('SNAP: Groq nivel 2 error, fallback OpenRouter:', data?.error?.message);
+                        usedProvider = 'openrouter';
+                    }
+                } catch (e) {
+                    logger.warn('SNAP: Groq nivel 2 excepción, fallback OpenRouter:', e);
+                    usedProvider = 'openrouter';
+                }
             }
         } else {
             usedProvider = 'openrouter';
@@ -144,19 +177,20 @@ ${JSON.stringify(medicalData)}
                 })
             });
             data = await response.json();
-            console.log('SNAP: usando OpenRouter fallback' + (response!.ok ? ' ✅' : ' ❌'));
+            logger.log('SNAP: usando OpenRouter fallback' + (response!.ok ? ' ✅' : ' ❌'));
         }
 
         // Validar respuesta
         if (!response!.ok) {
-            console.error('SNAP: AI Provider Error:', data);
+            logger.error('SNAP: AI Provider Error:', data);
             let message = 'AI Snapshot Error';
             if (data?.error) {
                 message = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
             } else if (data?.message) {
                 message = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);
             }
-            return NextResponse.json({ error: message }, { status: response!.status });
+            logger.error('SNAP: AI Provider Error:', message);
+            return NextResponse.json({ error: safeErrorMessage(new Error(message), 'Error generando snapshot clínico') }, { status: response!.status });
         }
         // The OpenRouter response may already be a parsed object when using json_object format
         let snapshotResult;
@@ -168,18 +202,18 @@ ${JSON.stringify(medicalData)}
             // Validamos que el JSON generado no ignore riesgos reales
             const safety = validateClinicalSafety([patient], JSON.stringify(snapshotResult), user.user_metadata?.full_name || 'Colega');
             if (!safety.isValid && safety.suggestedWarning) {
-                console.warn('NIA Snapshot 🛑: Safety Engine detected omission. Overriding notes...');
+                logger.warn('NIA Snapshot 🛑: Safety Engine detected omission. Overriding notes...');
                 snapshotResult.safetyAlerts.hasAlerts = true;
                 snapshotResult.safetyAlerts.notes = `🚨 REVISIÓN MANDATORIA: ${safety.detectedAlerts.join(', ')}`;
             }
         } catch (e) {
-            console.error('Failed to parse NIA snapshot JSON:', e);
+            logger.error('Failed to parse NIA snapshot JSON:', e);
             return NextResponse.json({ error: 'Invalid snapshot format' }, { status: 500 });
         }
         return NextResponse.json(snapshotResult);
 
     } catch (error) {
-        console.error('NIA_SNAPSHOT_API_ERROR:', error);
+        logger.error('NIA_SNAPSHOT_API_ERROR:', error);
         return NextResponse.json({ error: 'Error generating snapshot' }, { status: 500 });
     }
 }
