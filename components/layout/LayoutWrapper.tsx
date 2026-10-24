@@ -16,7 +16,7 @@ import MobileNav from "@/components/layout/MobileNav";
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-    const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register')
+    const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/trial-expired')
 
     if (isAuthPage) {
         return (

@@ -13,7 +13,8 @@ import {
   Stethoscope,
   Sparkles,
   Gift,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
   const [showTrialBanner, setShowTrialBanner] = useState(false)
+  const [trialExpired, setTrialExpired] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
@@ -63,6 +65,9 @@ export default function DashboardPage() {
           if (daysLeft > 0) {
             setTrialDaysLeft(daysLeft)
             setShowTrialBanner(true)
+          } else {
+            // Trial expirado: banner bloqueante (el middleware redirige a /trial-expired)
+            setTrialExpired(true)
           }
         }
 
@@ -203,32 +208,76 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 md:space-y-10 pb-20">
-      {/* Trial Banner */}
-      {showTrialBanner && trialDaysLeft !== null && (
+      {/* Trial Banner bloqueante — expirado */}
+      {trialExpired && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`flex items-center justify-between gap-4 rounded-2xl px-5 py-4 border ${
-            trialDaysLeft <= 5
-              ? 'bg-amber-50 border-amber-200 text-amber-900'
-              : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl px-5 py-4 border bg-red-50 border-red-200 text-red-900"
+        >
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-500" />
+            <p className="text-sm font-semibold">
+              Tu periodo de prueba ha terminado. Elige un plan para recuperar el acceso completo a MdPulso.
+            </p>
+          </div>
+          <Link
+            href="/precios"
+            className="flex-shrink-0 rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-red-600/20 hover:bg-red-700 transition-all active:scale-[0.98]"
+          >
+            Elegir plan ahora
+          </Link>
+        </motion.div>
+      )}
+
+      {/* Trial Banner activo — countdown visual */}
+      {showTrialBanner && trialDaysLeft !== null && !trialExpired && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl px-5 py-4 border ${
+            trialDaysLeft <= 3
+              ? 'bg-red-50 border-red-200 text-red-900'
+              : trialDaysLeft <= 5
+                ? 'bg-amber-50 border-amber-200 text-amber-900'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-900'
           }`}
         >
           <div className="flex items-center gap-3">
-            <Gift className={`h-5 w-5 flex-shrink-0 ${trialDaysLeft <= 5 ? 'text-amber-500' : 'text-emerald-500'}`} />
+            {trialDaysLeft <= 3 ? (
+              <div className="h-10 w-10 flex-shrink-0 rounded-full bg-red-500 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-red-500/30">
+                {trialDaysLeft}
+              </div>
+            ) : (
+              <Gift className={`h-5 w-5 flex-shrink-0 ${trialDaysLeft <= 5 ? 'text-amber-500' : 'text-emerald-500'}`} />
+            )}
             <p className="text-sm font-semibold">
-              {trialDaysLeft <= 5
-                ? `Tu período de prueba vence en ${trialDaysLeft} día${trialDaysLeft !== 1 ? 's' : ''}. Contáctanos para continuar.`
-                : `Prueba gratuita activa — Te quedan ${trialDaysLeft} días para explorar MdPulso sin costo.`
+              {trialDaysLeft <= 3
+                ? `¡Urgente! Tu prueba vence en ${trialDaysLeft} día${trialDaysLeft !== 1 ? 's' : ''}. Elige un plan para no perder el acceso.`
+                : trialDaysLeft <= 5
+                  ? `Tu período de prueba vence en ${trialDaysLeft} días. Contáctanos para continuar.`
+                  : `Prueba gratuita activa — Te quedan ${trialDaysLeft} días para explorar MdPulso sin costo.`
               }
             </p>
           </div>
-          <button
-            onClick={() => setShowTrialBanner(false)}
-            className="p-1.5 rounded-lg hover:bg-black/5 transition-colors flex-shrink-0"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              href="/precios"
+              className={`rounded-xl px-4 py-2 text-xs font-bold text-white shadow-lg transition-all active:scale-[0.98] ${
+                trialDaysLeft <= 3
+                  ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20'
+                  : 'bg-slate-900 hover:bg-slate-800'
+              }`}
+            >
+              Elegir plan ahora
+            </Link>
+            <button
+              onClick={() => setShowTrialBanner(false)}
+              className="p-1.5 rounded-lg hover:bg-black/5 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </motion.div>
       )}
 

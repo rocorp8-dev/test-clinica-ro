@@ -39,7 +39,7 @@ export default function PatientsPage() {
             // Obtener pacientes
             const { data: patientsData } = await supabase
                 .from('patients')
-                .select('*')
+                .select('id, nombre, dni, curp, telefono, email, fecha_nac, sexo, tipo_sangre, alergias, padecimientos, antecedentes, domicilio, ciudad, cp, estado, estado_civil, ocupacion, created_at')
                 .eq('user_id', user.id)
                 .order('nombre')
 

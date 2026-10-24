@@ -35,7 +35,7 @@ export default function RecordsPage() {
     useEffect(() => {
         const load = async () => {
             setLoadingList(true)
-            const { data } = await supabase.from('patients').select('*').order('nombre')
+            const { data } = await supabase.from('patients').select('id, nombre, dni, curp, telefono, email, fecha_nac, sexo, tipo_sangre, alergias, padecimientos, antecedentes, domicilio, ciudad, cp, estado, estado_civil, ocupacion, created_at').order('nombre')
             setPatients(data || [])
             setLoadingList(false)
         }
@@ -46,8 +46,8 @@ export default function RecordsPage() {
         setSelected(patient)
         setLoadingExp(true)
         const [notesRes, appsRes] = await Promise.all([
-            supabase.from('medical_notes').select('*').eq('patient_id', patient.id).order('created_at', { ascending: false }),
-            supabase.from('appointments').select('*').eq('patient_id', patient.id).order('fecha', { ascending: false }),
+            supabase.from('medical_notes').select('id, created_at, tipo_nota, subjetivo, objetivo, analisis, plan, diagnostico, codigo_cie10, tension_sistolica, tension_diastolica, frecuencia_cardiaca, frecuencia_resp, temperatura, peso_kg, talla_cm, spo2, firmada, fecha_firma, cedula_prof, receta, antecedentes_go').eq('patient_id', patient.id).order('created_at', { ascending: false }),
+            supabase.from('appointments').select('id, fecha, motivo, estado, diagnostico, created_at').eq('patient_id', patient.id).order('fecha', { ascending: false }),
         ])
         setNotes(notesRes.data || [])
         setAppointments(appsRes.data || [])

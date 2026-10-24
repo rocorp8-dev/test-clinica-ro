@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -13,11 +13,42 @@ export default function LoginForm() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
+    const [resetLoading, setResetLoading] = useState(false)
+    const emailInputRef = useRef<HTMLInputElement>(null)
     const router = useRouter()
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key'
     )
+
+    // Recovery de contraseña funcional
+    const handleForgotPassword = async () => {
+        if (!email.trim()) {
+            toast.error('Ingresa tu email primero', {
+                description: 'Escribe tu email profesional arriba y vuelve a intentarlo.',
+            })
+            emailInputRef.current?.focus()
+            return
+        }
+
+        setResetLoading(true)
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+                redirectTo: `${window.location.origin}/auth/callback`,
+            })
+            if (error) throw error
+
+            toast.success('Correo de recuperación enviado', {
+                description: 'Revisa tu bandeja de entrada y sigue el enlace para restablecer tu contraseña.',
+            })
+        } catch (err) {
+            toast.error('No se pudo enviar el correo', {
+                description: err instanceof Error ? err.message : 'Verifica tu email e intenta de nuevo',
+            })
+        } finally {
+            setResetLoading(false)
+        }
+    }
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -37,9 +68,9 @@ export default function LoginForm() {
 
             router.push('/')
             router.refresh()
-        } catch (err: any) {
+        } catch (err) {
             toast.error('Error de acceso', {
-                description: err.message || 'Credenciales incorrectas'
+                description: err instanceof Error ? err.message : 'Credenciales incorrectas'
             })
         } finally {
             setLoading(false)
@@ -70,6 +101,7 @@ export default function LoginForm() {
                         <input
                             type="email"
                             required
+                            ref={emailInputRef}
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm focus:border-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
@@ -81,7 +113,14 @@ export default function LoginForm() {
                 <div className="space-y-1.5">
                     <div className="flex justify-between items-center ml-1">
                         <label className="text-sm font-semibold text-slate-700">Contraseña</label>
-                        <Link href="#" className="text-xs text-emerald-600 hover:underline">¿La olvidaste?</Link>
+                        <button
+                            type="button"
+                            onClick={handleForgotPassword}
+                            disabled={resetLoading}
+                            className="text-xs text-emerald-600 hover:underline disabled:opacity-50"
+                        >
+                            {resetLoading ? 'Enviando...' : '¿La olvidaste?'}
+                        </button>
                     </div>
                     <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />

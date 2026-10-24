@@ -17,6 +17,7 @@
     "qa:report": "node scripts/qa-report.js qa-reports/results.json test-clinica"
   },
   "dependencies": {
+    "@stripe/stripe-js": "^10.1.0",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.95.3",
@@ -30,6 +31,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sonner": "^2.0.7",
+    "stripe": "^23.0.1",
     "tailwind-merge": "^3.4.1"
   },
   "devDependencies": {

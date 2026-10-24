@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
+import { logger } from '@/lib/logger'
 import { createBrowserClient } from '@supabase/ssr'
 import { useSearchParams } from 'next/navigation'
 import {
@@ -148,7 +149,7 @@ function AppointmentsContent() {
                         filter: `doctor_id=eq.${user.id}`
                     },
                     (payload) => {
-                        console.log('🔄 Appointment changed:', payload)
+                        logger.log('🔄 Appointment changed:', payload)
                         loadAppointments()  // Recargar automáticamente
                     }
                 )

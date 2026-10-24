@@ -101,7 +101,6 @@ export default function BillingPage() {
                 schema: 'public',
                 table: 'billing'
             }, () => {
-                console.log('Billing real-time: nuevo cobro detectado, recargando...')
                 loadBilling()
             })
             .subscribe()

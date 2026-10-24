@@ -2,15 +2,26 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Check, X, Info, Copy, CheckCircle2, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
+import { Check, X, Info, Copy, CheckCircle2, ArrowRight, CreditCard, Building2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function PricingPage() {
   const [isAnnual, setIsAnnual] = useState(true);
   const [showSPEI, setShowSPEI] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const router = useRouter();
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key'
+  );
 
   const plans = [
     {
+      id: "basico",
       name: "Básico",
       tag: "Solo médico",
       desc: "Para médicos independientes que quieren digitalizarse sin complicaciones.",
@@ -31,6 +42,7 @@ export default function PricingPage() {
       color: "border-slate-800",
     },
     {
+      id: "pro",
       name: "Pro+",
       tag: "Recomendado",
       desc: "El sistema completo con IA clínica. Para médicos que quieren lo mejor.",
@@ -51,6 +63,7 @@ export default function PricingPage() {
       color: "border-cyan-500/30",
     },
     {
+      id: "clinica",
       name: "Clínica",
       tag: "Equipo médico",
       desc: "Para consultorios y clínicas con varios médicos. Gestión centralizada.",
@@ -78,10 +91,40 @@ export default function PricingPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    // Podríamos añadir un toast aquí
+    toast.success('Copiado al portapapeles');
   };
 
-  const handlePlanSelection = (planName: string) => {
+  // Pago con tarjeta → Stripe Checkout
+  const handleCheckout = async (planId: string) => {
+    try {
+      // ¿Está logueado? — getUser(), nunca getSession()
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push(`/register?plan=${planId}`);
+        return;
+      }
+
+      setCheckoutLoading(planId);
+      const res = await fetch('/api/checkout/create-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planId, billing: isAnnual ? 'annual' : 'monthly' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'No se pudo iniciar el pago');
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error('Error al iniciar el pago', {
+        description: err instanceof Error ? err.message : 'Intenta de nuevo',
+      });
+      setCheckoutLoading(null);
+    }
+  };
+
+  // Pago por transferencia SPEI → modal existente
+  const handleSPEI = (planName: string) => {
     setSelectedPlan(planName);
     setShowSPEI(true);
   };
@@ -185,16 +228,37 @@ export default function PricingPage() {
                 </ul>
               </div>
 
-              <button 
-                onClick={() => handlePlanSelection(plan.name)}
-                className={`w-full py-4 rounded-xl text-sm font-semibold transition-all ${
-                  plan.popular 
-                    ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-cyan-500/20 hover:scale-[1.02]' 
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {plan.btnText}
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleCheckout(plan.id)}
+                  disabled={checkoutLoading !== null}
+                  className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                    plan.popular
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-cyan-500/20 hover:scale-[1.02]'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {checkoutLoading === plan.id ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Redirigiendo a pago...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-4 h-4" />
+                      Pagar con tarjeta
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleSPEI(plan.name)}
+                  disabled={checkoutLoading !== null}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-xs font-semibold border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-all disabled:opacity-60"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  Pagar por transferencia
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -205,7 +269,7 @@ export default function PricingPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
             <div>
               <h4 className="text-cyan-400 text-sm font-medium mb-2">¿Cómo activo mi plan?</h4>
-              <p className="text-slate-400 text-sm leading-relaxed">Tras realizar la transferencia SPEI, envíe su comprobante por WhatsApp o correo. Su cuenta se activará en menos de 30 minutos.</p>
+              <p className="text-slate-400 text-sm leading-relaxed">Con tarjeta la activación es inmediata vía Stripe. Con transferencia SPEI, envíe su comprobante por WhatsApp o correo y su cuenta se activará en menos de 30 minutos.</p>
             </div>
             <div>
               <h4 className="text-cyan-400 text-sm font-medium mb-2">¿Cumple con la NOM?</h4>

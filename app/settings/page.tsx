@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
+import SubscriptionCard from '@/components/billing/SubscriptionCard'
 
 export default function SettingsPage() {
     // Estado para Google Calendar
@@ -27,6 +28,7 @@ export default function SettingsPage() {
     const [isSavingUrl, setIsSavingUrl] = useState(false)
     const [urlStatus, setUrlStatus] = useState<'idle' | 'valid' | 'invalid'>('idle')
     const [showGoogleCalendarSection, setShowGoogleCalendarSection] = useState(false)
+    const [showSubscriptionSection, setShowSubscriptionSection] = useState(false)
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -124,7 +126,6 @@ export default function SettingsPage() {
         { title: 'Notificaciones', desc: 'Configura alertas de citas y mensajes de pacientes.', icon: Bell },
         { title: 'Clínica & Sucursales', desc: 'Administra los datos fiscales y sedes de tu consulta.', icon: Globe },
         { title: 'Seguridad & Datos', desc: 'Cambiar contraseña y copias de seguridad de Supabase.', icon: Database },
-        { title: 'Suscripción MdPulso', desc: 'Ver plan actual y métodos de pago.', icon: CreditCard },
     ]
 
     return (
@@ -157,6 +158,40 @@ export default function SettingsPage() {
                             <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-emerald-500 transition-colors" />
                         </motion.div>
                     ))}
+
+                    {/* Módulo Suscripción MdPulso */}
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.45 }}
+                        className="p-6 bg-white rounded-3xl border border-emerald-100 shadow-sm"
+                    >
+                        <div
+                            onClick={() => setShowSubscriptionSection(!showSubscriptionSection)}
+                            className="flex items-center justify-between cursor-pointer group"
+                        >
+                            <div className="flex items-center gap-6">
+                                <div className="h-14 w-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                    <CreditCard className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-900">Suscripción MdPulso</h3>
+                                    <p className="text-sm text-slate-500 mt-0.5">Ver plan actual, renovación y métodos de pago.</p>
+                                </div>
+                            </div>
+                            <ChevronRight className={`h-5 w-5 text-slate-300 group-hover:text-emerald-500 transition-all ${showSubscriptionSection ? 'rotate-90' : ''}`} />
+                        </div>
+
+                        {showSubscriptionSection && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="mt-6"
+                            >
+                                <SubscriptionCard />
+                            </motion.div>
+                        )}
+                    </motion.div>
 
                     {/* Módulo Google Calendar - Integración iCal */}
                     <motion.div

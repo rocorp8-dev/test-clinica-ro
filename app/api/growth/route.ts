@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { logger, safeErrorMessage } from '@/lib/logger'
 
 // GET /api/growth?patient_id=xxx - Obtener mediciones de un paciente
 export async function GET(request: Request) {
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
     // Obtener mediciones ordenadas por fecha (más reciente primero)
     const { data: measurements, error } = await supabase
       .from('growth_measurements')
-      .select('*')
+      .select('id, patient_id, fecha_medicion, edad_meses, peso_kg, talla_cm, perimetro_cefalico_cm, notas, created_at')
       .eq('patient_id', patient_id)
       .eq('doctor_id', user.id)
       .order('fecha_medicion', { ascending: false })
@@ -40,9 +41,9 @@ export async function GET(request: Request) {
     if (error) throw error
 
     return NextResponse.json({ measurements })
-  } catch (error: any) {
-    console.error('Error fetching growth measurements:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    logger.error('Error fetching growth measurements:', error)
+    return NextResponse.json({ error: safeErrorMessage(error) }, { status: 500 })
   }
 }
 
@@ -134,9 +135,9 @@ export async function POST(request: Request) {
     if (error) throw error
 
     return NextResponse.json({ measurement }, { status: 201 })
-  } catch (error: any) {
-    console.error('Error creating growth measurement:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    logger.error('Error creating growth measurement:', error)
+    return NextResponse.json({ error: safeErrorMessage(error) }, { status: 500 })
   }
 }
 
@@ -177,8 +178,8 @@ export async function DELETE(request: Request) {
     if (error) throw error
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error('Error deleting growth measurement:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    logger.error('Error deleting growth measurement:', error)
+    return NextResponse.json({ error: safeErrorMessage(error) }, { status: 500 })
   }
 }

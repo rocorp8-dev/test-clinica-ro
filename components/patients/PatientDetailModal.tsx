@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import {
     X, User, Phone, CreditCard, Calendar, Activity, ClipboardList, Send,
@@ -66,8 +67,8 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
         setLoading(true)
         try {
             const [appsRes, notesRes] = await Promise.all([
-                supabase.from('appointments').select('*').eq('patient_id', patient.id).order('fecha', { ascending: false }),
-                supabase.from('medical_notes').select('*').eq('patient_id', patient.id).order('created_at', { ascending: false })
+                supabase.from('appointments').select('id, fecha, motivo, estado, diagnostico, tipo_consulta, created_at').eq('patient_id', patient.id).order('fecha', { ascending: false }),
+                supabase.from('medical_notes').select('id, created_at, tipo_nota, subjetivo, analisis, plan, diagnostico, codigo_cie10, firmada').eq('patient_id', patient.id).order('created_at', { ascending: false })
             ])
             const combined = [
                 ...(appsRes.data || []).map(a => ({ ...a, _type: 'appointment' })),
@@ -75,7 +76,7 @@ export default function PatientDetailModal({ isOpen, onClose, patient }: Patient
             ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
             setHistory(combined)
         } catch (err) {
-            console.error(err)
+            logger.error('Error cargando historial del paciente', err)
         } finally {
             setLoading(false)
         }
